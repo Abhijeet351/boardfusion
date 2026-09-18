@@ -71,6 +71,7 @@
   </div>
 </div>
 
+<script src="gamify.js"></script>
 <script>
 'use strict';
 // ---------- Board geometry ----------
@@ -155,6 +156,7 @@ function deal(){
 }
 document.getElementById('startbtn').onclick = ()=>{
   players = seats().map((c,i)=>({color:c, ai:seatSel[i]==='Computer'}));
+  BFGame.start('Marble Loop', players.map(p=>p.ai ? p.color+' CPU' : p.color.charAt(0).toUpperCase()+p.color.slice(1)));
   marbles = {}; players.forEach(p=>marbles[p.color]=[-1,-1,-1,-1]);
   newDeck(); deal();
   turn = 0; gameOver = false; selCard = null; phase = 'pickCard'; split = null;
@@ -211,11 +213,12 @@ function applyForward(color, i, d){
   let msg = '';
   if(p===-1){ marbles[color][i]=0; return pname(color)+' enters the loop'; }
   p += d; marbles[color][i]=p;
-  if(p===44) msg = pname(color)+' gets a marble home!';
+  if(p===44){ BFGame.home(); msg = pname(color)+' gets a marble home!'; }
   else if(p<=39){
     const occ = marbleAtAbs(absIdx(color,p), color, i);
     if(occ && TEAM(occ.color)!==TEAM(color)){
       marbles[occ.color][occ.idx] = -1;
+      BFGame.capture(1);
       msg = pname(color)+' sends '+pname(occ.color)+' back to base!';
     }
   }
@@ -227,7 +230,9 @@ function checkWin(){
       if(pcount===2 || players.every(q=>TEAM(q.color)!==TEAM(pl.color) || marbles[q.color].every(p=>p===44))){
         if(pcount===2 || players.filter(q=>TEAM(q.color)===TEAM(pl.color)).every(q=>marbles[q.color].every(p=>p===44))){
           gameOver = true;
+          const winnerName=pcount===4?('Team '+TEAM(pl.color)):(pl.color.charAt(0).toUpperCase()+pl.color.slice(1));
           log('&#127942; '+(pcount===4?('Team '+TEAM(pl.color)) : pname(pl.color))+' WINS! Tap New Game');
+          BFGame.win(winnerName);
           render(); renderHand(); return true;
         }
       }
