@@ -113,6 +113,28 @@
   .victory-warm{background:radial-gradient(circle,rgba(255,194,72,.58),rgba(121,53,30,.2) 46%,transparent 70%)}.victory-warm b{font-family:Georgia,serif;background:linear-gradient(120deg,#fff8d0,#ffc44f,#e66e32);-webkit-background-clip:text;background-clip:text;color:transparent}
   @media(max-width:540px){.theme-pill{position:static;margin:4px 0 2px}.choice-grid{grid-template-columns:1fr 1fr}.setup-section{padding:10px}.panel{max-height:92vh}}
 
+  /* Fine UI/UX pass: clearer hierarchy, easier touch targets, calmer setup, and stronger state feedback. */
+  button,input,select{font:inherit}button:focus-visible,input:focus-visible,select:focus-visible,canvas:focus-visible{outline:3px solid color-mix(in srgb,var(--accent) 75%,white);outline-offset:3px}
+  button{min-height:44px}.theme-pill{min-height:36px}.tab{min-height:44px}
+  #statusbar{position:relative;justify-content:flex-start;text-align:left;padding-left:42px;line-height:1.3}
+  #statusbar:before{content:'TURN';position:absolute;left:11px;font-size:8px;font-weight:950;letter-spacing:1px;opacity:.6}
+  #statusbar[data-state="choose"]{box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 48%,transparent),0 8px 20px rgba(0,0,0,.14)}
+  .arena{overflow:visible}.control-label{display:block;font-size:9px;letter-spacing:.8px;text-transform:uppercase;opacity:.72;margin-top:2px}
+  #controls>button:not(#dicebtn){display:inline-grid;place-items:center;min-width:78px;line-height:1.05}
+  #dicebtn:after{font-size:9px;bottom:-2px}.player-card.active .player-turn:before{content:'● ';animation:turnPulse 1.3s ease-in-out infinite}@keyframes turnPulse{50%{opacity:.35}}
+  .setup-panel{max-width:720px;padding:0;overflow:hidden;display:flex;flex-direction:column}.setup-scroll{padding:24px 24px 8px;overflow-y:auto;overscroll-behavior:contain}
+  .setup-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}.setup-head .sub{max-width:520px}.icon-close{flex:0 0 auto;width:42px;border:1px solid var(--line);border-radius:12px;background:transparent;color:inherit;font-size:20px;cursor:pointer}
+  .setup-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}.setup-section{margin:0}.setup-section.house-rules{grid-column:1/-1}
+  .section-hint{display:block;font-size:10px;font-weight:600;letter-spacing:0;text-transform:none;opacity:.68;margin-top:2px}
+  .choice{min-height:42px;transition:transform .14s ease,background .14s ease}.choice:hover{transform:translateY(-1px)}.choice.sel:after{content:' ✓';font-weight:950}
+  .toggle-line{min-height:42px;margin:1px 0;cursor:pointer}.toggle-line input{width:22px;height:22px;flex:0 0 auto}
+  .setup-actions{position:sticky;bottom:0;z-index:2;padding:12px 24px 16px;background:linear-gradient(180deg,transparent 0%,var(--card) 24%);border-top:1px solid var(--line)}body.theme-nani .setup-actions{background:linear-gradient(180deg,rgba(239,189,114,0),#efbd72 24%)}
+  .player-setup{display:grid;grid-template-columns:160px 1fr;align-items:start;gap:12px}.player-count-label{font-size:11px;font-weight:900;letter-spacing:1px;text-transform:uppercase;margin:0 0 6px}.player-setup .row{margin:0}.player-setup .row button{min-width:0}.player-list{display:grid;grid-template-columns:1fr 1fr;gap:7px}.pset{margin:0;padding:5px 8px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.07)}.pset select{min-height:36px;max-width:112px}
+  #startbtn{margin-top:10px;min-height:52px}.rules-summary{margin:10px 0 0}.rules-summary summary{cursor:pointer;font-size:12px;font-weight:800;min-height:36px;display:flex;align-items:center}.rules-summary .note{margin:0 0 4px}
+  @media(max-width:680px){.setup-panel{max-width:470px;display:block;overflow-y:auto}.setup-scroll{padding:19px 16px 6px;overflow:visible}.setup-actions{position:static;background:transparent!important}.setup-grid{grid-template-columns:1fr}.setup-section.house-rules{grid-column:auto}.setup-actions{padding:10px 16px 14px}.player-setup{grid-template-columns:1fr}.player-list{grid-template-columns:1fr 1fr}}
+  @media(max-width:420px){header{padding-top:9px}.tabs{margin-top:5px}#statusbar{margin-top:4px}.arena{padding:5px}#controls{position:sticky;bottom:0;z-index:6;background:color-mix(in srgb,var(--panel) 90%,transparent);border-top:1px solid var(--line);backdrop-filter:blur(14px);padding:7px 5px 10px}#controls>button:not(#dicebtn){min-width:63px;padding:10px 8px!important;font-size:12px}.player-list{grid-template-columns:1fr}.setup-head h2{font-size:21px}.choice{font-size:12px}.panel{border-radius:20px}.overlay{padding:10px}}
+  @media(prefers-reduced-motion:reduce){.player-card.active .player-turn:before{animation:none}.choice{transition:none}.choice:hover{transform:none}}
+
   .hidden { display:none !important; }
 </style>
 </head>
@@ -125,14 +147,14 @@
 
 <div id="ludo-view">
   <section class="arena">
-  <div id="statusbar">Set up a game to begin</div>
-  <div id="boardstage"><div id="boardwrap"><canvas id="board" width="600" height="600"></canvas></div><div id="playerrail" aria-live="polite"></div><div id="boarddie" aria-hidden="true"></div></div>
+  <div id="statusbar" role="status" aria-live="polite" aria-atomic="true">Set up a game to begin</div>
+  <div id="boardstage"><div id="boardwrap"><canvas id="board" width="600" height="600" tabindex="0" aria-label="Ludo board. Roll the die, then tap a highlighted token when asked."></canvas></div><div id="playerrail" aria-live="polite"></div><div id="boarddie" aria-hidden="true"></div></div>
   <div id="controls">
     <button id="dicebtn" disabled></button>
-    <button id="newgame">New Game</button>
-    <button id="onlinebtn">Online</button>
-    <button id="howto">Rules</button>
-    <button id="customize">Style</button>
+    <button id="newgame">New Game<span class="control-label">Local</span></button>
+    <button id="onlinebtn">Online<span class="control-label">Room</span></button>
+    <button id="howto">Rules<span class="control-label">How to play</span></button>
+    <button id="customize">Style<span class="control-label">Theme</span></button>
   </div>
   </section>
 </div>
@@ -152,19 +174,21 @@
   <p>The rules engine, card deck, and board renderer are designed in the README. The playable build ships in the next milestone; Dice Race is fully playable today.</p>
 </div>
 
-<div class="overlay" id="setup">
-  <div class="panel">
-    <h2>Dice Race</h2>
-    <div class="nostalgia-kicker">Summer at Nani's House</div><p class="sub">A warm family game-night edition. Online ranked rules always stay standard and server-verified.</p>
-    <div class="setup-section"><h3>Family names</h3><div class="choice-grid" id="namepresets"><button class="choice sel" data-names="Papa,Mummy,Didi,Chintu">Family</button><button class="choice" data-names="Nani,Nana,Maasi,Mama">Nani's home</button><button class="choice" data-names="Dada,Dadi,Bhaiya,Gudiya">Cousins</button><button class="choice" data-names="Red,Green,Yellow,Blue">Colours</button></div></div>
-    <div class="setup-section"><h3>Look and feel</h3><div class="choice-grid" id="themes"><button class="choice sel" data-theme="holiday">Summer holiday</button><button class="choice" data-theme="monsoon">Monsoon</button><button class="choice" data-theme="diwali">Diwali</button><button class="choice" data-theme="neon">Neon arcade</button></div><div class="choice-grid" id="tokensets" style="margin-top:7px"><button class="choice sel" data-token="wood">Wooden pawns</button><button class="choice" data-token="glass">Glass marbles</button><button class="choice" data-token="cap">Bottle caps</button><button class="choice" data-token="carrom">Carrom coins</button></div><label class="toggle-line"><span>Fan, dice and token sounds</span><input type="checkbox" id="soundopt"></label></div>
-    <div class="setup-section"><h3>Local house rules <small>(unranked only)</small></h3><label class="toggle-line"><span>One 6 brings a token out and moves it</span><input type="checkbox" id="quickentry"></label><label class="toggle-line"><span>Safe stars</span><input type="checkbox" id="safestars" checked></label><label class="toggle-line"><span>Pass-the-phone handoff</span><input type="checkbox" id="passphone" checked></label><p class="note">These choices apply only to local games. Online play ignores them and uses standard verified rules.</p></div>
-    <div class="row" id="pcount">
-      <button data-n="2">2P</button><button data-n="3">3P</button><button data-n="4" class="sel">4P</button>
+<div class="overlay" id="setup" role="dialog" aria-modal="true" aria-labelledby="setup-title">
+  <div class="panel setup-panel">
+    <div class="setup-scroll">
+      <div class="setup-head"><div><h2 id="setup-title">Set up Dice Race</h2><div class="nostalgia-kicker">Summer at Nani's House</div><p class="sub">Choose the family mood and players. Online ranked games always use standard server-verified rules.</p></div><button id="closesetup" class="icon-close hidden" aria-label="Close game setup">×</button></div>
+      <div class="setup-grid">
+        <div class="setup-section"><h3>Family names<span class="section-hint">Pick a ready-made set</span></h3><div class="choice-grid" id="namepresets"><button class="choice sel" data-names="Papa,Mummy,Didi,Chintu">Family</button><button class="choice" data-names="Nani,Nana,Maasi,Mama">Nani's home</button><button class="choice" data-names="Dada,Dadi,Bhaiya,Gudiya">Cousins</button><button class="choice" data-names="Red,Green,Yellow,Blue">Colours</button></div></div>
+        <div class="setup-section"><h3>Look and feel<span class="section-hint">You can change this later</span></h3><div class="choice-grid" id="themes"><button class="choice sel" data-theme="holiday">Summer holiday</button><button class="choice" data-theme="monsoon">Monsoon</button><button class="choice" data-theme="diwali">Diwali</button><button class="choice" data-theme="neon">Neon arcade</button></div><div class="choice-grid" id="tokensets" style="margin-top:7px"><button class="choice sel" data-token="wood">Wooden pawns</button><button class="choice" data-token="glass">Glass marbles</button><button class="choice" data-token="cap">Bottle caps</button><button class="choice" data-token="carrom">Carrom coins</button></div><label class="toggle-line"><span>Fan, dice and token sounds <small>(off by default)</small></span><input type="checkbox" id="soundopt"></label></div>
+        <div class="setup-section house-rules"><h3>Local house rules<span class="section-hint">Optional and unranked. Online play ignores these.</span></h3><label class="toggle-line"><span>One 6 brings a token out and moves it</span><input type="checkbox" id="quickentry"></label><label class="toggle-line"><span>Safe stars</span><input type="checkbox" id="safestars" checked></label><label class="toggle-line"><span>Pass-the-phone handoff</span><input type="checkbox" id="passphone" checked></label></div>
+      </div>
     </div>
-    <div id="plist"></div>
-    <button id="startbtn">Start Game</button>
-    <p class="note">Roll a 6 to leave base. Landing on an opponent sends them home; star squares are safe. A 6, a capture, or getting a token home earns another roll - but three 6s in a row ends your turn. First to bring all 4 tokens home wins. Local games can use optional family house rules above; online ranked rooms always use these standard rules.</p>
+    <div class="setup-actions">
+      <div class="player-setup"><div><div class="player-count-label">Players</div><div class="row" id="pcount"><button data-n="2">2</button><button data-n="3">3</button><button data-n="4" class="sel">4</button></div></div><div id="plist" class="player-list"></div></div>
+      <button id="startbtn">Start local game</button>
+      <details class="rules-summary"><summary>Quick rules</summary><p class="note">Roll a 6 to leave base. Tap a glowing token to move it. Captures send opponents home; stars are safe. A 6, capture, or home token earns another roll. Three 6s end the turn. First to bring all four tokens home wins.</p></details>
+    </div>
   </div>
 </div>
 
@@ -238,7 +262,7 @@ let players = [];            // [{color, ai, done}]
 let tokens = {};             // color -> [p..]  -1 yard, 0..50 track, 51..56 home lane (56 = home)
 let turn = 0, dice = null, awaitingMove = false, gameOver = true, sixes = 0;
 let movableCache = [];
-let log = m => { document.getElementById('statusbar').innerHTML = m; };
+let log = m => { const bar=document.getElementById('statusbar');bar.innerHTML=m;bar.dataset.state=(/tap a glowing token/i.test(bar.textContent)?'choose':/to roll/i.test(bar.textContent)?'roll':'info'); };
 const chip = c => '<span class="chip" style="background:'+COLORS[c]+'"></span>';
 const pname = c => chip(c)+c.charAt(0).toUpperCase()+c.slice(1);
 
@@ -256,7 +280,7 @@ document.getElementById('tokensets').onclick=e=>{const b=e.target.closest('[data
 document.getElementById('namepresets').onclick=e=>{const b=e.target.closest('[data-names]');if(!b)return;nostalgia.names=b.dataset.names.split(',');document.querySelectorAll('#namepresets .choice').forEach(x=>x.classList.toggle('sel',x===b));renderPlayerList()};
 document.getElementById('soundopt').onchange=e=>{nostalgia.sound=e.target.checked;if(nostalgia.sound){tone(330,.1,'sine',.04);setFan(true)}else setFan(false)};
 document.getElementById('quickentry').onchange=e=>nostalgia.quickEntry=e.target.checked;document.getElementById('safestars').onchange=e=>nostalgia.safeStars=e.target.checked;document.getElementById('passphone').onchange=e=>nostalgia.passPhone=e.target.checked;
-document.getElementById('themequick').onclick=()=>applyTheme(nostalgia.theme==='neon'?'holiday':'neon');document.getElementById('customize').onclick=()=>document.getElementById('setup').classList.remove('hidden');
+document.getElementById('themequick').onclick=()=>applyTheme(nostalgia.theme==='neon'?'holiday':'neon');function openSetup(){document.getElementById('setup').classList.remove('hidden');document.getElementById('closesetup').classList.toggle('hidden',gameOver);setTimeout(()=>document.getElementById('setup-title').focus?.(),0)}document.getElementById('customize').onclick=openSetup;document.getElementById('closesetup').onclick=()=>document.getElementById('setup').classList.add('hidden');
 function showPassPhone(){if(!nostalgia.passPhone||!players[turn]||players[turn].ai||window.NET?.mode==='v2')return;const el=document.createElement('div');el.className='pass-overlay';el.innerHTML='<div class="pass-card"><small>PASS THE PHONE</small><b>'+escapeHtml(nostalgia.names[turn]||players[turn].color)+'\'s turn</b><p>Hand the board over without peeking.</p><button>Ready to roll</button></div>';document.body.appendChild(el);el.querySelector('button').onclick=()=>el.remove()}
 function showMemoryCard(winner){const moved=Object.values(tokens).flat().filter(x=>x>=0).length;const el=document.createElement('div');el.className='memory-card';el.innerHTML='<div class="memory-inner"><div class="stamp">🏆</div><small>FROM NANI\'S GAME TABLE</small><h2>'+escapeHtml(winner)+' won this one</h2><p>'+moved+' tokens made it onto the board. Save the bragging rights for the next family rematch.</p><button>Keep this memory</button></div>';document.body.appendChild(el);el.querySelector('button').onclick=()=>el.remove()}
 
@@ -293,7 +317,7 @@ document.getElementById('startbtn').onclick = ()=>{
   document.getElementById('dicebtn').disabled = false;
   log(pname(players[0].color)+' to roll'); playerCards(); render(); showPassPhone(); maybeAI();
 };
-document.getElementById('newgame').onclick = ()=>document.getElementById('setup').classList.remove('hidden');
+document.getElementById('newgame').onclick = openSetup;
 document.getElementById('howto').onclick = ()=>alert('Dice Race rules:\n\n- Roll a 6 to move a token out of base.\n- Tap the dice, then tap a highlighted token to move it.\n- Land on an opponent to send them back to base.\n- Star squares are safe.\n- Rolling a 6, capturing, or bringing a token home gives another roll.\n- Three 6s in a row ends your turn.\n- First player to bring all 4 tokens home wins.');
 
 // ---------- Tabs ----------
