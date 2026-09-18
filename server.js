@@ -10,10 +10,30 @@ const { WebSocketServer } = require('ws');
 const PORT = process.env.PORT || 8787;
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.json': 'application/json', '.png': 'image/png', '.md': 'text/markdown; charset=utf-8' };
+const SUPABASE_URL='https://shvwglpfpuogwadvspvz.supabase.co';
+const SUPABASE_PUBLIC='sb_publishable_gNJCTsEc246ssSYoG5LqzQ_Hb5bnTnl';
+const scoredEvents=new Map();
+const json=(res,code,data)=>{res.writeHead(code,{'Content-Type':'application/json'});res.end(JSON.stringify(data));};
+async function scoreResult(req,res){
+  if(!process.env.SUPABASE_SECRET_KEY) return json(res,503,{error:'scoring unavailable'});
+  let body='';for await(const chunk of req){body+=chunk;if(body.length>4096)return json(res,413,{error:'too large'});}
+  let input;try{input=JSON.parse(body)}catch(_){return json(res,400,{error:'invalid json'});}
+  if(!/^[0-9a-f-]{20,64}$/i.test(input.event_id||'')||!['Dice Race','Dice Race Online','Marble Loop'].includes(input.game)||input.winner!==true)return json(res,400,{error:'invalid result'});
+  if(scoredEvents.has(input.event_id))return json(res,200,scoredEvents.get(input.event_id));
+  const auth=req.headers.authorization||'';if(!auth.startsWith('Bearer '))return json(res,401,{error:'sign in required'});
+  const ur=await fetch(SUPABASE_URL+'/auth/v1/user',{headers:{apikey:SUPABASE_PUBLIC,Authorization:auth}});if(!ur.ok)return json(res,401,{error:'invalid session'});const user=await ur.json();
+  const h={apikey:process.env.SUPABASE_SECRET_KEY,Authorization:'Bearer '+process.env.SUPABASE_SECRET_KEY,'Content-Type':'application/json'};
+  let pr=await fetch(SUPABASE_URL+'/rest/v1/profiles?id=eq.'+encodeURIComponent(user.id)+'&select=xp,wins,matches',{headers:h});let rows=await pr.json();if(!pr.ok||!rows[0])return json(res,409,{error:'profile missing'});
+  const next={xp:rows[0].xp+100,wins:rows[0].wins+1,matches:rows[0].matches+1,updated_at:new Date().toISOString()};
+  pr=await fetch(SUPABASE_URL+'/rest/v1/profiles?id=eq.'+encodeURIComponent(user.id),{method:'PATCH',headers:{...h,Prefer:'return=minimal'},body:JSON.stringify(next)});if(!pr.ok)return json(res,502,{error:'score write failed'});
+  const out={ok:true,xp:next.xp,wins:next.wins,matches:next.matches};scoredEvents.set(input.event_id,out);setTimeout(()=>scoredEvents.delete(input.event_id),86400000);return json(res,200,out);
+}
+
 const PUBLIC = new Set(['/', '/index.html', '/marble.html', '/net.js', '/gamify.js', '/cloud.js', '/landing.html', '/icon.png']);
 
 const server = http.createServer((req, res) => {
   const url = req.url.split('?')[0];
+  if (url === '/api/result' && req.method === 'POST') return void scoreResult(req,res).catch(()=>json(res,500,{error:'score error'}));
   if (url === '/healthz') { res.writeHead(200, {'Content-Type':'application/json'}); return res.end('{"ok":true,"rooms":' + rooms.size + '}'); }
   const file = url === '/' ? '/index.html' : url;
   if (!PUBLIC.has(file)) { res.writeHead(404); return res.end('not found'); }
