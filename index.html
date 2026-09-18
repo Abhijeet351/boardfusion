@@ -84,7 +84,14 @@
   @keyframes heldHandShake{0%,100%{transform:translate(0,0) rotate(-8deg)}18%{transform:translate(-7px,-2px) rotate(-15deg)}38%{transform:translate(6px,2px) rotate(0)}58%{transform:translate(-5px,1px) rotate(-13deg)}78%{transform:translate(6px,-2px) rotate(-1deg)}}
   @keyframes cupLiftReveal{0%{transform:translate(0,0) rotate(0)}18%{transform:translate(-6px,2px) rotate(-7deg)}34%{transform:translate(6px,-3px) rotate(8deg)}52%{transform:translate(-3px,0) rotate(-4deg)}100%{transform:translate(34px,-30px) rotate(24deg) scale(.72);opacity:.76}}
   @keyframes handLiftReveal{0%{transform:translate(0,0) rotate(-8deg)}52%{transform:translate(-3px,0) rotate(-11deg)}100%{transform:translate(35px,-29px) rotate(16deg) scale(.72);opacity:.72}}
-  @keyframes crispDieLand{0%,48%{transform:translate(0,-10px) rotate(-14deg);opacity:.12}62%{transform:translate(-13px,18px) rotate(18deg);opacity:1}76%{transform:translate(-13px,3px) rotate(-7deg);opacity:1}89%{transform:translate(-13px,11px) rotate(3deg);opacity:1}100%{transform:translate(-13px,8px) rotate(0);opacity:1}}
+  @keyframes crispDieLand{0%,46%{transform:translate(0,-10px) rotate(-14deg);opacity:.12}58%{transform:translate(-5px,7px) rotate(14deg);opacity:1}70%{transform:translate(-8px,1px) rotate(-5deg);opacity:1}100%{transform:translate(-8px,4px) rotate(0);opacity:1}}
+  /* The authoritative die leaves the lifted cup, tumbles across the board, and settles with its real pip face visible. */
+  #boarddie{position:absolute;left:50%;top:102%;width:48px;height:48px;z-index:7;display:grid;grid-template:repeat(3,1fr)/repeat(3,1fr);padding:8px;gap:2px;border:2px solid #d8e2e8;border-radius:10px;background:linear-gradient(145deg,#fff,#edf2f5);box-shadow:0 5px 0 #b8c4cb,0 13px 18px rgba(0,0,0,.42);opacity:0;pointer-events:none;transform-origin:center;will-change:left,top,transform,opacity}
+  #boarddie:after{content:'';position:absolute;inset:4px;border-radius:6px;box-shadow:inset 2px 2px 3px rgba(255,255,255,.9),inset -2px -2px 3px rgba(77,91,104,.12);pointer-events:none}
+  #boarddie .pip{width:8px;height:8px;align-self:center;justify-self:center;border-radius:50%;background:transparent;z-index:1}#boarddie .pip.on{background:#101827;box-shadow:inset 0 -1px 1px rgba(255,255,255,.28),0 1px 1px rgba(0,0,0,.18)}
+  #boarddie.board-rolling{animation:boardDieTumble 1.55s cubic-bezier(.17,.67,.24,1) forwards}
+  #boarddie.board-landed{left:56%;top:58%;opacity:1;transform:translate(-50%,-50%) rotate(0);box-shadow:0 5px 0 #b8c4cb,0 10px 15px rgba(0,0,0,.38)}
+  @keyframes boardDieTumble{0%,34%{left:50%;top:102%;opacity:0;transform:translate(-50%,-50%) rotate(-25deg) scale(.68)}39%{opacity:1}48%{left:53%;top:85%;transform:translate(-50%,-50%) rotate(145deg) scale(.82)}61%{left:62%;top:61%;transform:translate(-50%,-50%) rotate(350deg) scale(1)}72%{left:50%;top:51%;transform:translate(-50%,-50%) rotate(520deg) scale(.96)}81%{left:59%;top:63%;transform:translate(-50%,-50%) rotate(630deg) scale(1)}89%{left:54%;top:55%;transform:translate(-50%,-50%) rotate(695deg) scale(.98)}95%{left:57%;top:60%;transform:translate(-50%,-50%) rotate(715deg)}100%{left:56%;top:58%;opacity:1;transform:translate(-50%,-50%) rotate(720deg)}}
   #dicebtn:disabled{opacity:.58}#dicebtn:not(:disabled):hover{transform:none}#dicebtn:not(:disabled):active{transform:scale(.97)}
   @media(max-width:540px){#boardstage{width:min(92vw,520px)}.player-card{width:82px;padding:4px;gap:4px;border-radius:11px}.player-card .player-avatar{width:27px;height:27px}.player-card .player-name{font-size:9px}.player-card[data-color="red"]{left:4px;top:4px}.player-card[data-color="green"]{right:4px;top:4px}.player-card[data-color="yellow"]{right:4px;bottom:4px}.player-card[data-color="blue"]{left:4px;bottom:4px}#dicebtn{width:106px;height:104px;transform:scale(.92)}}
 
@@ -119,7 +126,7 @@
 <div id="ludo-view">
   <section class="arena">
   <div id="statusbar">Set up a game to begin</div>
-  <div id="boardstage"><div id="boardwrap"><canvas id="board" width="600" height="600"></canvas></div><div id="playerrail" aria-live="polite"></div></div>
+  <div id="boardstage"><div id="boardwrap"><canvas id="board" width="600" height="600"></canvas></div><div id="playerrail" aria-live="polite"></div><div id="boarddie" aria-hidden="true"></div></div>
   <div id="controls">
     <button id="dicebtn" disabled></button>
     <button id="newgame">New Game</button>
@@ -210,15 +217,17 @@ const COLORS = {red:'#e53935', green:'#43a047', yellow:'#f9a825', blue:'#1e88e5'
 const ORDER = ['red','green','yellow','blue'];
 const PIPS = {1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
 let diceAnimTimer=null,diceAwaitingResult=false;
+function paintPips(el,n){el.innerHTML='';for(let i=0;i<9;i++){const pip=document.createElement('span');pip.className='pip'+(PIPS[n].includes(i)?' on':'');el.appendChild(pip)}}
+function rollDieOntoBoard(n){const die=document.getElementById('boarddie');paintPips(die,n);die.setAttribute('aria-label','Rolled '+n);die.classList.remove('board-rolling','board-landed');void die.offsetWidth;die.classList.add('board-rolling');setTimeout(()=>{die.classList.remove('board-rolling');die.classList.add('board-landed')},1560)}
 function setDiceFace(n,animate=false){
   const b=document.getElementById('dicebtn');let face=document.getElementById('dieface');
   if(!b.querySelector('.dice-cup')){const cup=document.createElement('span');cup.className='dice-cup';cup.setAttribute('aria-hidden','true');const hand=document.createElement('span');hand.className='dice-hand';hand.setAttribute('aria-hidden','true');b.append(cup,hand)}
   if(!face){face=document.createElement('span');face.id='dieface';face.setAttribute('aria-hidden','true');b.prepend(face)}
-  face.innerHTML='';for(let i=0;i<9;i++){const pip=document.createElement('span');pip.className='pip'+(PIPS[n].includes(i)?' on':'');face.appendChild(pip)}
+  paintPips(face,n);
   b.setAttribute('aria-label','Roll dice. Current face '+n);
-  if(animate||diceAwaitingResult){clearTimeout(diceAnimTimer);b.classList.remove('shaking','landed','revealing');void b.offsetWidth;b.classList.add('revealing');diceAwaitingResult=false;diceAnimTimer=setTimeout(()=>{b.classList.remove('revealing');b.classList.add('landed')},1260)}
+  if(animate||diceAwaitingResult){clearTimeout(diceAnimTimer);b.classList.remove('shaking','landed','revealing');void b.offsetWidth;b.classList.add('revealing');rollDieOntoBoard(n);diceAwaitingResult=false;diceAnimTimer=setTimeout(()=>{b.classList.remove('revealing');b.classList.add('landed')},1260)}
 }
-function beginDiceShake(){diceSound();const b=document.getElementById('dicebtn');if(b.disabled)return;clearTimeout(diceAnimTimer);b.classList.remove('revealing','landed');void b.offsetWidth;b.classList.add('shaking');b.setAttribute('aria-busy','true');diceAwaitingResult=true}
+function beginDiceShake(){diceSound();const b=document.getElementById('dicebtn');if(b.disabled)return;clearTimeout(diceAnimTimer);b.classList.remove('revealing','landed');const boardDie=document.getElementById('boarddie');boardDie.classList.remove('board-rolling','board-landed');boardDie.style.opacity='';void b.offsetWidth;b.classList.add('shaking');b.setAttribute('aria-busy','true');diceAwaitingResult=true}
 function finishDiceShake(n){const b=document.getElementById('dicebtn');setDiceFace(n,true);b.removeAttribute('aria-busy')}
 
 // ---------- Game state ----------
