@@ -184,7 +184,7 @@
 <div class="overlay" id="setup" role="dialog" aria-modal="true" aria-labelledby="setup-title">
   <div class="panel setup-panel">
     <div class="setup-scroll">
-      <div class="setup-head"><div><h2 id="setup-title">Set up Dice Race</h2><div class="nostalgia-kicker">Summer at Nani's House</div><p class="sub">Choose the family mood and players. Online ranked games always use standard server-verified rules.</p></div><button id="closesetup" class="icon-close hidden" aria-label="Close game setup">×</button></div>
+      <div class="setup-head"><div><h2 id="setup-title" tabindex="-1">Set up Dice Race</h2><div class="nostalgia-kicker">Summer at Nani's House</div><p class="sub">Choose the family mood and players. Online ranked games always use standard server-verified rules.</p></div><button id="closesetup" class="icon-close hidden" aria-label="Close game setup">×</button></div>
       <div class="setup-grid">
         <div class="setup-section"><h3>Family names<span class="section-hint">Pick a ready-made set</span></h3><div class="choice-grid" id="namepresets"><button class="choice sel" data-names="Papa,Mummy,Didi,Chintu">Family</button><button class="choice" data-names="Nani,Nana,Maasi,Mama">Nani's home</button><button class="choice" data-names="Dada,Dadi,Bhaiya,Gudiya">Cousins</button><button class="choice" data-names="Red,Green,Yellow,Blue">Colours</button></div></div>
         <div class="setup-section"><h3>Look and feel<span class="section-hint">You can change this later</span></h3><div class="choice-grid" id="themes"><button class="choice sel" data-theme="holiday">Summer holiday</button><button class="choice" data-theme="monsoon">Monsoon</button><button class="choice" data-theme="diwali">Diwali</button><button class="choice" data-theme="neon">Neon arcade</button></div><div class="choice-grid" id="tokensets" style="margin-top:7px"><button class="choice sel" data-token="wood">Wooden pawns</button><button class="choice" data-token="glass">Glass marbles</button><button class="choice" data-token="cap">Bottle caps</button><button class="choice" data-token="carrom">Carrom coins</button></div><label class="toggle-line"><span>Fan, dice and token sounds <small>(on by default)</small></span><input type="checkbox" id="soundopt" checked></label><label class="toggle-line"><span>Background music <small>(on by default)</small></span><input type="checkbox" id="musicopt" checked></label><div id="musicstatus" class="section-hint" role="status">Music starts on your first tap.</div><details class="audio-credit"><summary>Music credit</summary><p>“Happy Vibes” by Ruskerdax, dedicated to the public domain under <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noopener">CC0 1.0</a>. <a href="https://opengameart.org/content/happy-vibes" target="_blank" rel="noopener">Owning source</a>.</p></details></div>
@@ -204,7 +204,7 @@
     <h2>Play Online</h2>
     <p class="sub">Find another player now, or use a private room code with friends. Every online match is verified by the server.</p>
     <div id="connform">
-      <input id="wsurl" placeholder="ws://localhost:8787/ws" style="width:100%;padding:10px;border-radius:8px;border:1px solid #475569;background:#0f172a;color:#e2e8f0;margin-bottom:10px">
+      <details class="connection-settings"><summary>Connection settings</summary><input id="wsurl" aria-label="Game server address" placeholder="ws://localhost:8787/ws" style="width:100%;padding:10px;border-radius:8px;border:1px solid #475569;background:#0f172a;color:#e2e8f0;margin:8px 0 10px"></details>
       <input id="pname_in" placeholder="Your name" maxlength="24" style="width:100%;padding:10px;border-radius:8px;border:1px solid #475569;background:#0f172a;color:#e2e8f0;margin-bottom:10px">
       <div class="match-choice">
         <button id="findmatch" class="match-card"><strong>Find online player</strong><small>Join the public 1 vs 1 queue</small></button>
@@ -572,7 +572,7 @@ function onlineLog(state,event){
 function playerCards(seats){
  const rail=document.getElementById('playerrail');if(!players.length&&!seats?.length){rail.innerHTML='';return;}
  const list=(seats||players).map((p,i)=>({name:p.name||p.color||('Player '+(i+1)),color:p.color||seatColors((seats||players).length)[i],online:p.online!==false,seat:p.seat??i}));
- rail.innerHTML=list.map((p,i)=>'<div class="player-card '+(i===turn&&!gameOver?'active ':'')+(p.online?'':'offline')+'" data-seat="'+p.seat+'" data-color="'+p.color+'" style="--pc:'+COLORS[p.color]+'"><div class="player-avatar">'+escapeHtml((p.name||'P')[0].toUpperCase())+'</div><div class="player-name">'+escapeHtml(p.name)+'<span class="player-turn">'+(gameOver?'Finished':i===turn?'Your move':'In the race')+'</span></div></div>').join('');
+ rail.innerHTML=list.map((p,i)=>{const online=!!seats&&window.NET?.mode==='v2',active=i===turn&&!gameOver,turnText=gameOver?'Finished':active?(online?(p.seat===NET.seat?'Your move':"Opponent's move"):'Current turn'):'In the race';return '<div class="player-card '+(active?'active ':'')+(p.online?'':'offline')+'" data-seat="'+p.seat+'" data-color="'+p.color+'" style="--pc:'+COLORS[p.color]+'"><div class="player-avatar">'+escapeHtml((p.name||'P')[0].toUpperCase())+'</div><div class="player-name">'+escapeHtml(p.name)+'<span class="player-turn">'+turnText+'</span></div></div>'}).join('');
 }
 function reactionOverAvatar(seat,emoji){
  const card=document.querySelector('.player-card[data-seat="'+seat+'"]');if(!card)return;
@@ -612,6 +612,7 @@ NET.on('error',m=>{document.getElementById('onlineerr').textContent=m.reason||'R
 document.getElementById('startonline').onclick=()=>{if(lobbyNames.length<2){document.getElementById('onlineerr').textContent='Need at least 2 players';return}BFGame.start('Dice Race Online',lobbyNames);NET.start();};
 document.querySelectorAll('[data-react]').forEach(b=>b.onclick=()=>NET.react(b.dataset.react));document.getElementById('mutereactions').onclick=()=>{NET.mute(!NET.muted);document.getElementById('mutereactions').textContent=!NET.muted?'Mute reactions':'Unmute reactions'};document.getElementById('rematch').onclick=()=>NET.rematch();
 if(location.hash==='#online')document.getElementById('online').classList.remove('hidden');
+document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;const online=document.getElementById('online');if(!online.classList.contains('hidden')){if(NET.queueing)NET.cancelMatch();online.classList.add('hidden');document.getElementById('onlinebtn').focus();return}const setup=document.getElementById('setup');if(!setup.classList.contains('hidden')&&!document.getElementById('closesetup').classList.contains('hidden')){setup.classList.add('hidden');document.getElementById('newgame').focus();}});
 
 
 function applyRoom(room,event,roll){
@@ -669,4 +670,4 @@ if(location.hash==='#demo'){
 </script>
 
 </body>
-  </html>
+</html>
