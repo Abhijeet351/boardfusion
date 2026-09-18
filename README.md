@@ -106,3 +106,9 @@ Deploy configs included: render.yaml (recommended free path), fly.toml (paid aft
 House simplifications in the current Marble Loop build: the split-7 lets you skip the remainder
 if you choose (traditional rules require using it when possible), and a finished player's cards
 are discarded rather than played for the partner. Both are noted for the next pass.
+
+## Music
+
+Dice Race includes a subtle loop of **“Happy Vibes” by Ruskerdax**, sourced from
+https://opengameart.org/content/happy-vibes and dedicated to the public domain under CC0 1.0.
+The exact license and redistribution notes are in [`MUSIC-LICENSE.md`](MUSIC-LICENSE.md).
