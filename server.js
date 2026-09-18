@@ -6,6 +6,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { WebSocketServer } = require('ws');
+const DiceEngine = require('./dice-engine');
 
 const PORT = process.env.PORT || 8787;
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
@@ -31,12 +32,14 @@ async function scoreResult(req,res){
   const out={ok:true,xp:next.xp,wins:next.wins,matches:next.matches};scoredEvents.set(input.event_id,out);setTimeout(()=>scoredEvents.delete(input.event_id),86400000);return json(res,200,out);
 }
 
-const PUBLIC = new Set(['/', '/index.html', '/marble.html', '/net.js', '/gamify.js', '/cloud.js', '/landing.html', '/icon.png']);
+const PUBLIC = new Set(['/', '/index.html', '/marble.html', '/net.js', '/gamify.js', '/cloud.js', '/landing.html', '/maintenance.html', '/icon.png']);
 
 const server = http.createServer((req, res) => {
   const url = req.url.split('?')[0];
   if (url === '/api/result' && req.method === 'POST') return void scoreResult(req,res).catch(()=>json(res,500,{error:'score error'}));
   if (url === '/healthz') { res.writeHead(200, {'Content-Type':'application/json'}); return res.end('{"ok":true,"rooms":' + rooms.size + '}'); }
+  const maintenance = process.env.MAINTENANCE_MODE === 'on';
+  if (maintenance && ['/', '/index.html', '/marble.html', '/landing.html'].includes(url)) { res.writeHead(503, {'Content-Type':'text/html; charset=utf-8','Retry-After':'900'}); return fs.createReadStream(path.join(__dirname,'maintenance.html')).pipe(res); }
   const file = url === '/' ? '/index.html' : url;
   if (!PUBLIC.has(file)) { res.writeHead(404); return res.end('not found'); }
   fs.readFile(path.join(__dirname, file), (err, data) => {
@@ -59,15 +62,19 @@ wss.on('connection', ws => {
     let m; try { m = JSON.parse(raw); } catch { return; }
     if (m.t === 'create') {
       roomCode = code();
-      rooms.set(roomCode, { host: ws, clients: new Map([[ws, { name: m.name }]]), started: false });
+      rooms.set(roomCode, { host: ws, clients: new Map([[ws, { name: m.name, seat:0 }]]), started: false, authority:null });
       send(ws, { t: 'created', code: roomCode });
     } else if (m.t === 'join') {
       const room = rooms.get(m.code);
       if (!room || room.started || room.clients.size >= 4) return send(ws, { t: 'error', reason: 'room unavailable' });
       roomCode = m.code;
-      room.clients.set(ws, { name: m.name });
+      room.clients.set(ws, { name: m.name, seat:room.clients.size });
       broadcast(room, { t: 'lobby', players: [...room.clients.values()].map(c => c.name) });
       send(ws, { t: 'joined', code: roomCode });
+    } else if (m.t === 'auth-start' && process.env.AUTHORITATIVE_DICE === 'enabled') {
+      const room=rooms.get(roomCode);if(!room||ws!==room.host||room.started)return;room.started=true;room.authority=DiceEngine.create([...room.clients.values()].map(x=>x.name));broadcast(room,{t:'auth-state',state:room.authority});send(ws,{t:'auth-state',state:room.authority});
+    } else if (m.t === 'auth-move' && process.env.AUTHORITATIVE_DICE === 'enabled') {
+      const room=rooms.get(roomCode);if(!room||!room.authority)return;const member=room.clients.get(ws);if(!member)return;try{const ev=m.kind==='roll'?DiceEngine.roll(room.authority,member.seat):DiceEngine.move(room.authority,member.seat,m.idx);broadcast(room,{t:'auth-state',event:ev.type,state:room.authority});send(ws,{t:'auth-state',event:ev.type,state:room.authority});}catch(e){send(ws,{t:'error',reason:e.message});}
     } else if (m.t === 'start' || m.t === 'state' || m.t === 'move') {
       const room = rooms.get(roomCode); if (!room) return;
       if (m.t === 'start') room.started = true;
