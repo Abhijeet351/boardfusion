@@ -67,22 +67,26 @@
   .player-card[data-color="red"]{left:7px;top:7px}.player-card[data-color="green"]{right:7px;top:7px}.player-card[data-color="yellow"]{right:7px;bottom:7px}.player-card[data-color="blue"]{left:7px;bottom:7px}
   .player-card.active{transform:scale(1.04);box-shadow:0 0 0 2px color-mix(in srgb,var(--pc) 72%,white),0 7px 25px color-mix(in srgb,var(--pc) 32%,transparent)}
   .player-card .player-avatar{width:31px;height:31px;border-radius:50%}.player-card .player-name{font-size:10px;text-shadow:0 1px 3px #000}.player-card .player-turn{font-size:7px;color:#d6def6}
-  /* A clear shaker cup contains the die until the authoritative result lands. */
-  #dicebtn{position:relative;display:block;width:92px;height:100px;padding:0;border:0;background:transparent;box-shadow:none;overflow:visible;isolation:isolate}
-  #dicebtn:before{content:'';position:absolute;left:15px;top:5px;width:60px;height:68px;border:2px solid rgba(219,246,255,.82);border-top:6px solid rgba(224,250,255,.92);border-radius:16px 16px 22px 22px;background:linear-gradient(120deg,rgba(255,255,255,.23),rgba(102,219,255,.07) 42%,rgba(255,255,255,.18));box-shadow:inset 8px 0 12px rgba(255,255,255,.13),inset -8px 0 15px rgba(66,173,255,.12),0 12px 24px rgba(0,0,0,.35);backdrop-filter:blur(2px);transform-origin:50% 90%;z-index:2}
-  #dicebtn:after{content:'SHAKE & ROLL';position:absolute;left:50%;bottom:0;transform:translateX(-50%);width:max-content;font-size:8px;font-weight:950;letter-spacing:1.3px;color:#aeefff;text-shadow:0 0 12px #3bdbff}
-  #dieface{position:absolute;left:32px;top:32px;width:31px;height:31px;border-radius:8px;background:#fff;display:grid;grid-template:repeat(3,1fr)/repeat(3,1fr);padding:5px;gap:1px;box-shadow:0 4px 10px rgba(0,0,0,.45);z-index:3;transform:rotate(-9deg)}
-  #dieface .pip{background:transparent}.pip.on{background:#111b36}
-  #dicebtn.shaking:before{animation:cupShake .65s cubic-bezier(.36,.07,.19,.97) infinite}
-  #dicebtn.shaking #dieface{animation:dieRattle .34s linear infinite}
-  #dicebtn.released:before{animation:cupTip .72s cubic-bezier(.2,.8,.2,1)}
-  #dicebtn.released #dieface{animation:dieThrow .9s cubic-bezier(.18,.78,.2,1)}
-  @keyframes cupShake{0%,100%{transform:translateX(0) rotate(0)}20%{transform:translateX(-6px) rotate(-9deg)}40%{transform:translateX(6px) rotate(9deg)}60%{transform:translateX(-5px) rotate(-7deg)}80%{transform:translateX(5px) rotate(7deg)}}
-  @keyframes dieRattle{0%{transform:translate(-8px,-10px) rotate(0)}33%{transform:translate(8px,5px) rotate(125deg)}66%{transform:translate(-5px,10px) rotate(245deg)}100%{transform:translate(-8px,-10px) rotate(360deg)}}
-  @keyframes cupTip{0%,40%{transform:rotate(0)}65%{transform:translate(-5px,-7px) rotate(-28deg)}100%{transform:rotate(0)}}
-  @keyframes dieThrow{0%{transform:translate(0,0) rotate(0) scale(.8)}45%{transform:translate(30px,-25px) rotate(380deg) scale(1.15)}72%{transform:translate(24px,15px) rotate(630deg) scale(1)}86%{transform:translate(21px,7px) rotate(700deg)}100%{transform:translate(0,0) rotate(711deg)}}
-  #dicebtn:disabled{opacity:.5}#dicebtn:not(:disabled):hover{transform:none}#dicebtn:not(:disabled):active{transform:scale(.97)}
-  @media(max-width:540px){#boardstage{width:min(92vw,520px)}.player-card{width:82px;padding:4px;gap:4px;border-radius:11px}.player-card .player-avatar{width:27px;height:27px}.player-card .player-name{font-size:9px}.player-card[data-color="red"]{left:4px;top:4px}.player-card[data-color="green"]{right:4px;top:4px}.player-card[data-color="yellow"]{right:4px;bottom:4px}.player-card[data-color="blue"]{left:4px;bottom:4px}#dicebtn{width:82px;height:92px;transform:scale(.92)}}
+  /* A tactile hand-held cup: shake, lift, then reveal a crisp authoritative die. */
+  #dicebtn{position:relative;display:block;width:116px;height:108px;padding:0;border:0;background:transparent;box-shadow:none;overflow:visible;isolation:isolate;perspective:500px}
+  #dicebtn:after{content:'LIFT & ROLL';position:absolute;left:50%;bottom:-1px;transform:translateX(-50%);width:max-content;font-size:8px;font-weight:950;letter-spacing:1.3px;color:#aeefff;text-shadow:0 0 12px #3bdbff}
+  #dieface{position:absolute;left:43px;top:48px;width:42px;height:42px;border-radius:9px;background:#fff;display:grid;grid-template:repeat(3,1fr)/repeat(3,1fr);padding:7px;gap:2px;border:2px solid #d9e5ef;box-shadow:0 7px 13px rgba(0,0,0,.48);z-index:2;transform:rotate(-4deg);opacity:.14}
+  #dieface .pip{width:7px;height:7px;align-self:center;justify-self:center;border-radius:50%;background:transparent}#dieface .pip.on{background:#111827;box-shadow:inset 0 -1px 1px rgba(255,255,255,.28)}
+  .dice-cup{position:absolute;left:25px;top:12px;width:70px;height:68px;z-index:4;transform-origin:50% 20%;filter:drop-shadow(0 10px 9px rgba(0,0,0,.38))}
+  .dice-cup:before{content:'';position:absolute;inset:0;border-radius:10px 10px 24px 24px;background:linear-gradient(105deg,#1160a7 0%,#2f94de 38%,#0c579d 72%,#083b72 100%);border:3px solid #65baf0;border-top:7px solid #8bd3fa;box-shadow:inset 8px 0 10px rgba(255,255,255,.17),inset -9px -5px 12px rgba(0,23,62,.28)}
+  .dice-cup:after{content:'';position:absolute;left:8px;right:8px;top:9px;height:11px;border-radius:50%;background:rgba(5,31,69,.45);border:2px solid rgba(196,236,255,.7)}
+  .dice-hand{position:absolute;left:1px;top:22px;width:46px;height:25px;z-index:5;border-radius:18px 8px 9px 18px;background:linear-gradient(150deg,#f0b397,#cc795f);box-shadow:inset 0 2px 3px rgba(255,255,255,.35),0 5px 9px rgba(0,0,0,.25);transform:rotate(-8deg);transform-origin:right center}
+  .dice-hand:after{content:'';position:absolute;left:5px;top:17px;width:42px;height:15px;border-radius:14px;background:linear-gradient(#e9a387,#c96f58);box-shadow:inset 0 1px rgba(255,255,255,.28);transform:rotate(12deg)}
+  #dicebtn.shaking .dice-cup{animation:heldCupShake .62s cubic-bezier(.36,.07,.19,.97) infinite}#dicebtn.shaking .dice-hand{animation:heldHandShake .62s cubic-bezier(.36,.07,.19,.97) infinite}
+  #dicebtn.revealing .dice-cup{animation:cupLiftReveal 1.25s cubic-bezier(.2,.78,.18,1) forwards}#dicebtn.revealing .dice-hand{animation:handLiftReveal 1.25s cubic-bezier(.2,.78,.18,1) forwards}#dicebtn.revealing #dieface{animation:crispDieLand 1.25s cubic-bezier(.18,.78,.22,1) forwards}
+  #dicebtn.landed .dice-cup{transform:translate(34px,-30px) rotate(24deg) scale(.72);opacity:.76}#dicebtn.landed .dice-hand{transform:translate(35px,-29px) rotate(16deg) scale(.72);opacity:.72}#dicebtn.landed #dieface{transform:translate(-13px,8px) rotate(0);opacity:1}
+  @keyframes heldCupShake{0%,100%{transform:translate(0,0) rotate(0)}18%{transform:translate(-7px,-2px) rotate(-8deg)}38%{transform:translate(6px,2px) rotate(8deg)}58%{transform:translate(-5px,1px) rotate(-6deg)}78%{transform:translate(6px,-2px) rotate(7deg)}}
+  @keyframes heldHandShake{0%,100%{transform:translate(0,0) rotate(-8deg)}18%{transform:translate(-7px,-2px) rotate(-15deg)}38%{transform:translate(6px,2px) rotate(0)}58%{transform:translate(-5px,1px) rotate(-13deg)}78%{transform:translate(6px,-2px) rotate(-1deg)}}
+  @keyframes cupLiftReveal{0%{transform:translate(0,0) rotate(0)}18%{transform:translate(-6px,2px) rotate(-7deg)}34%{transform:translate(6px,-3px) rotate(8deg)}52%{transform:translate(-3px,0) rotate(-4deg)}100%{transform:translate(34px,-30px) rotate(24deg) scale(.72);opacity:.76}}
+  @keyframes handLiftReveal{0%{transform:translate(0,0) rotate(-8deg)}52%{transform:translate(-3px,0) rotate(-11deg)}100%{transform:translate(35px,-29px) rotate(16deg) scale(.72);opacity:.72}}
+  @keyframes crispDieLand{0%,48%{transform:translate(0,-10px) rotate(-14deg);opacity:.12}62%{transform:translate(-13px,18px) rotate(18deg);opacity:1}76%{transform:translate(-13px,3px) rotate(-7deg);opacity:1}89%{transform:translate(-13px,11px) rotate(3deg);opacity:1}100%{transform:translate(-13px,8px) rotate(0);opacity:1}}
+  #dicebtn:disabled{opacity:.58}#dicebtn:not(:disabled):hover{transform:none}#dicebtn:not(:disabled):active{transform:scale(.97)}
+  @media(max-width:540px){#boardstage{width:min(92vw,520px)}.player-card{width:82px;padding:4px;gap:4px;border-radius:11px}.player-card .player-avatar{width:27px;height:27px}.player-card .player-name{font-size:9px}.player-card[data-color="red"]{left:4px;top:4px}.player-card[data-color="green"]{right:4px;top:4px}.player-card[data-color="yellow"]{right:4px;bottom:4px}.player-card[data-color="blue"]{left:4px;bottom:4px}#dicebtn{width:106px;height:104px;transform:scale(.92)}}
 
   /* Summer at Nani's House: warm, tactile nostalgia with neon kept as a switchable option. */
   body.theme-nani{--text:#3c2617;--accent:#c65f2d;--card:#fff4d6;--line:rgba(83,45,24,.2);--panel:rgba(255,244,214,.94);background:radial-gradient(circle at 72% 4%,rgba(255,204,92,.5),transparent 28%),linear-gradient(155deg,#f4c66d,#e58a4a 52%,#7d3d28);color:#3c2617}
@@ -208,12 +212,13 @@ const PIPS = {1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]}
 let diceAnimTimer=null,diceAwaitingResult=false;
 function setDiceFace(n,animate=false){
   const b=document.getElementById('dicebtn');let face=document.getElementById('dieface');
-  if(!face){face=document.createElement('span');face.id='dieface';face.setAttribute('aria-hidden','true');b.appendChild(face)}
+  if(!b.querySelector('.dice-cup')){const cup=document.createElement('span');cup.className='dice-cup';cup.setAttribute('aria-hidden','true');const hand=document.createElement('span');hand.className='dice-hand';hand.setAttribute('aria-hidden','true');b.append(cup,hand)}
+  if(!face){face=document.createElement('span');face.id='dieface';face.setAttribute('aria-hidden','true');b.prepend(face)}
   face.innerHTML='';for(let i=0;i<9;i++){const pip=document.createElement('span');pip.className='pip'+(PIPS[n].includes(i)?' on':'');face.appendChild(pip)}
   b.setAttribute('aria-label','Roll dice. Current face '+n);
-  if(animate||diceAwaitingResult){clearTimeout(diceAnimTimer);b.classList.remove('shaking');void b.offsetWidth;b.classList.add('released');diceAwaitingResult=false;diceAnimTimer=setTimeout(()=>b.classList.remove('released'),920)}
+  if(animate||diceAwaitingResult){clearTimeout(diceAnimTimer);b.classList.remove('shaking','landed','revealing');void b.offsetWidth;b.classList.add('revealing');diceAwaitingResult=false;diceAnimTimer=setTimeout(()=>{b.classList.remove('revealing');b.classList.add('landed')},1260)}
 }
-function beginDiceShake(){diceSound();const b=document.getElementById('dicebtn');if(b.disabled)return;clearTimeout(diceAnimTimer);b.classList.remove('released');b.classList.add('shaking');b.setAttribute('aria-busy','true');diceAwaitingResult=true;diceAnimTimer=setTimeout(()=>{if(diceAwaitingResult)b.classList.add('shaking')},700)}
+function beginDiceShake(){diceSound();const b=document.getElementById('dicebtn');if(b.disabled)return;clearTimeout(diceAnimTimer);b.classList.remove('revealing','landed');void b.offsetWidth;b.classList.add('shaking');b.setAttribute('aria-busy','true');diceAwaitingResult=true}
 function finishDiceShake(n){const b=document.getElementById('dicebtn');setDiceFace(n,true);b.removeAttribute('aria-busy')}
 
 // ---------- Game state ----------
