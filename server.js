@@ -1,95 +1,60 @@
-// BoardFusion server: serves the web game AND the online-room relay on one port.
-// Run locally:  npm install && npm start          -> http://localhost:8787
-// Deploy: set PORT (Render/Fly do this automatically); put it behind HTTPS so
-// the client can use wss:// automatically.
-const http = require('http');
-const fs = require('fs');
-const path = require('path');
-const { WebSocketServer } = require('ws');
-const DiceEngine = require('./dice-engine');
-
-const PORT = process.env.PORT || 8787;
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
-  '.json': 'application/json', '.png': 'image/png', '.md': 'text/markdown; charset=utf-8' };
-const SUPABASE_URL='https://shvwglpfpuogwadvspvz.supabase.co';
-const SUPABASE_PUBLIC='sb_publishable_gNJCTsEc246ssSYoG5LqzQ_Hb5bnTnl';
-const scoredEvents=new Map();
+// BoardFusion: static site, legacy relay, and server-authoritative Dice Race v2.
+const http=require('http'),fs=require('fs'),path=require('path');
+const {WebSocketServer}=require('ws');
+const DiceEngine=require('./dice-engine'),Rooms=require('./room-v2');
+const PORT=process.env.PORT||8787;
+const MIME={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.json':'application/json','.png':'image/png','.md':'text/markdown; charset=utf-8'};
+const SUPABASE_URL='https://shvwglpfpuogwadvspvz.supabase.co',SUPABASE_PUBLIC='sb_publishable_gNJCTsEc246ssSYoG5LqzQ_Hb5bnTnl';
+const scoredEvents=new Map(),verifiedResults=new Map();
 const json=(res,code,data)=>{res.writeHead(code,{'Content-Type':'application/json'});res.end(JSON.stringify(data));};
+async function authUser(raw){if(!raw)return null;const r=await fetch(SUPABASE_URL+'/auth/v1/user',{headers:{apikey:SUPABASE_PUBLIC,Authorization:'Bearer '+raw}});if(!r.ok)throw Error('invalid session');return (await r.json()).id;}
 async function scoreResult(req,res){
-  // Disabled until the room server validates full game state; never trust a client-declared win.
-  if(process.env.VERIFIED_SCORING !== 'enabled') return json(res,503,{error:'verified scoring pending'});
-  if(!process.env.SUPABASE_SECRET_KEY) return json(res,503,{error:'scoring unavailable'});
-  let body='';for await(const chunk of req){body+=chunk;if(body.length>4096)return json(res,413,{error:'too large'});}
-  let input;try{input=JSON.parse(body)}catch(_){return json(res,400,{error:'invalid json'});}
-  if(!/^[0-9a-f-]{20,64}$/i.test(input.event_id||'')||!['Dice Race','Dice Race Online','Marble Loop'].includes(input.game)||input.winner!==true)return json(res,400,{error:'invalid result'});
-  if(scoredEvents.has(input.event_id))return json(res,200,scoredEvents.get(input.event_id));
-  const auth=req.headers.authorization||'';if(!auth.startsWith('Bearer '))return json(res,401,{error:'sign in required'});
-  const ur=await fetch(SUPABASE_URL+'/auth/v1/user',{headers:{apikey:SUPABASE_PUBLIC,Authorization:auth}});if(!ur.ok)return json(res,401,{error:'invalid session'});const user=await ur.json();
-  const h={apikey:process.env.SUPABASE_SECRET_KEY,Authorization:'Bearer '+process.env.SUPABASE_SECRET_KEY,'Content-Type':'application/json'};
-  let pr=await fetch(SUPABASE_URL+'/rest/v1/profiles?id=eq.'+encodeURIComponent(user.id)+'&select=xp,wins,matches',{headers:h});let rows=await pr.json();if(!pr.ok||!rows[0])return json(res,409,{error:'profile missing'});
-  const next={xp:rows[0].xp+100,wins:rows[0].wins+1,matches:rows[0].matches+1,updated_at:new Date().toISOString()};
-  pr=await fetch(SUPABASE_URL+'/rest/v1/profiles?id=eq.'+encodeURIComponent(user.id),{method:'PATCH',headers:{...h,Prefer:'return=minimal'},body:JSON.stringify(next)});if(!pr.ok)return json(res,502,{error:'score write failed'});
-  const out={ok:true,xp:next.xp,wins:next.wins,matches:next.matches};scoredEvents.set(input.event_id,out);setTimeout(()=>scoredEvents.delete(input.event_id),86400000);return json(res,200,out);
+ if(process.env.VERIFIED_SCORING!=='enabled')return json(res,503,{error:'verified scoring pending'});
+ if(!process.env.SUPABASE_SECRET_KEY)return json(res,503,{error:'scoring unavailable'});
+ let body='';for await(const chunk of req){body+=chunk;if(body.length>4096)return json(res,413,{error:'too large'});}let input;try{input=JSON.parse(body)}catch(_){return json(res,400,{error:'invalid json'});}
+ if(!/^[0-9a-f-]{20,64}$/i.test(input.event_id||''))return json(res,400,{error:'invalid result'});
+ if(scoredEvents.has(input.event_id))return json(res,200,scoredEvents.get(input.event_id));
+ const auth=req.headers.authorization||'';if(!auth.startsWith('Bearer '))return json(res,401,{error:'sign in required'});
+ let userId;try{userId=await authUser(auth.slice(7));}catch(_){return json(res,401,{error:'invalid session'});}
+ const verified=verifiedResults.get(input.event_id);if(!verified||verified.userId!==userId||verified.scored)return json(res,403,{error:'result not verified'});
+ const h={apikey:process.env.SUPABASE_SECRET_KEY,Authorization:'Bearer '+process.env.SUPABASE_SECRET_KEY,'Content-Type':'application/json'};
+ let pr=await fetch(SUPABASE_URL+'/rest/v1/profiles?id=eq.'+encodeURIComponent(userId)+'&select=xp,wins,matches',{headers:h}),rows=await pr.json();if(!pr.ok||!rows[0])return json(res,409,{error:'profile missing'});
+ const next={xp:rows[0].xp+100,wins:rows[0].wins+1,matches:rows[0].matches+1,updated_at:new Date().toISOString()};
+ pr=await fetch(SUPABASE_URL+'/rest/v1/profiles?id=eq.'+encodeURIComponent(userId),{method:'PATCH',headers:{...h,Prefer:'return=minimal'},body:JSON.stringify(next)});if(!pr.ok)return json(res,502,{error:'score write failed'});
+ verified.scored=true;const out={ok:true,xp:next.xp,wins:next.wins,matches:next.matches};scoredEvents.set(input.event_id,out);setTimeout(()=>{scoredEvents.delete(input.event_id);verifiedResults.delete(input.event_id)},86400000);return json(res,200,out);
 }
-
-const PUBLIC = new Set(['/', '/index.html', '/marble.html', '/net.js', '/gamify.js', '/cloud.js', '/landing.html', '/maintenance.html', '/icon.png']);
-
-const server = http.createServer((req, res) => {
-  const url = req.url.split('?')[0];
-  if (url === '/api/result' && req.method === 'POST') return void scoreResult(req,res).catch(()=>json(res,500,{error:'score error'}));
-  if (url === '/healthz') { res.writeHead(200, {'Content-Type':'application/json'}); return res.end('{"ok":true,"rooms":' + rooms.size + '}'); }
-  const maintenance = process.env.MAINTENANCE_MODE === 'on';
-  if (maintenance && ['/', '/index.html', '/marble.html', '/landing.html'].includes(url)) { res.writeHead(503, {'Content-Type':'text/html; charset=utf-8','Retry-After':'900'}); return fs.createReadStream(path.join(__dirname,'maintenance.html')).pipe(res); }
-  const file = url === '/' ? '/index.html' : url;
-  if (!PUBLIC.has(file)) { res.writeHead(404); return res.end('not found'); }
-  fs.readFile(path.join(__dirname, file), (err, data) => {
-    if (err) { res.writeHead(404); return res.end('not found'); }
-    res.writeHead(200, {'Content-Type': MIME[path.extname(file)] || 'application/octet-stream'});
-    res.end(data);
-  });
-});
-
-// ---------- Room relay ----------
-const wss = new WebSocketServer({ server, path: '/ws' });
-const rooms = new Map(); // code -> { host, clients: Map<ws,{name}>, started }
-const code = () => Math.random().toString(36).slice(2, 6).toUpperCase();
-const send = (ws, m) => { if (ws.readyState === 1) ws.send(JSON.stringify(m)); };
-const broadcast = (room, m, except) => { for (const c of room.clients.keys()) if (c !== except) send(c, m); };
-
-wss.on('connection', ws => {
-  let roomCode = null;
-  ws.on('message', raw => {
-    let m; try { m = JSON.parse(raw); } catch { return; }
-    if (m.t === 'create') {
-      roomCode = code();
-      rooms.set(roomCode, { host: ws, clients: new Map([[ws, { name: m.name, seat:0 }]]), started: false, authority:null });
-      send(ws, { t: 'created', code: roomCode });
-    } else if (m.t === 'join') {
-      const room = rooms.get(m.code);
-      if (!room || room.started || room.clients.size >= 4) return send(ws, { t: 'error', reason: 'room unavailable' });
-      roomCode = m.code;
-      room.clients.set(ws, { name: m.name, seat:room.clients.size });
-      broadcast(room, { t: 'lobby', players: [...room.clients.values()].map(c => c.name) });
-      send(ws, { t: 'joined', code: roomCode });
-    } else if (m.t === 'auth-start' && process.env.AUTHORITATIVE_DICE === 'enabled') {
-      const room=rooms.get(roomCode);if(!room||ws!==room.host||room.started)return;room.started=true;room.authority=DiceEngine.create([...room.clients.values()].map(x=>x.name));broadcast(room,{t:'auth-state',state:room.authority});send(ws,{t:'auth-state',state:room.authority});
-    } else if (m.t === 'auth-move' && process.env.AUTHORITATIVE_DICE === 'enabled') {
-      const room=rooms.get(roomCode);if(!room||!room.authority)return;const member=room.clients.get(ws);if(!member)return;try{const ev=m.kind==='roll'?DiceEngine.roll(room.authority,member.seat):DiceEngine.move(room.authority,member.seat,m.idx);broadcast(room,{t:'auth-state',event:ev.type,state:room.authority});send(ws,{t:'auth-state',event:ev.type,state:room.authority});}catch(e){send(ws,{t:'error',reason:e.message});}
-    } else if (m.t === 'start' || m.t === 'state' || m.t === 'move') {
-      const room = rooms.get(roomCode); if (!room) return;
-      if (m.t === 'start') room.started = true;
-      if (ws === room.host) broadcast(room, m, ws); else send(room.host, m);
-    } else if (m.t === 'chat') {
-      const room = rooms.get(roomCode); if (room) broadcast(room, m, ws);
-    }
-  });
-  ws.on('close', () => {
-    const room = rooms.get(roomCode); if (!room) return;
-    room.clients.delete(ws);
-    if (ws === room.host || room.clients.size === 0) {
-      broadcast(room, { t: 'closed' }); rooms.delete(roomCode);
-    } else broadcast(room, { t: 'lobby', players: [...room.clients.values()].map(c => c.name) });
-  });
-});
-
-server.listen(PORT, () => console.log('BoardFusion live on :' + PORT + ' (game at /, relay at /ws)'));
+const PUBLIC=new Set(['/','/index.html','/marble.html','/net.js','/gamify.js','/cloud.js','/landing.html','/maintenance.html','/icon.png']);
+const legacyRooms=new Map(),v2=new Rooms({ttl:120000});
+const server=http.createServer((req,res)=>{const url=req.url.split('?')[0];if(url==='/api/result'&&req.method==='POST')return void scoreResult(req,res).catch(()=>json(res,500,{error:'score error'}));if(url==='/healthz')return json(res,200,{ok:true,rooms:legacyRooms.size+v2.rooms.size});const maintenance=process.env.MAINTENANCE_MODE==='on';if(maintenance&&['/','/index.html','/marble.html','/landing.html'].includes(url)){res.writeHead(503,{'Content-Type':'text/html; charset=utf-8','Retry-After':'900'});return fs.createReadStream(path.join(__dirname,'maintenance.html')).pipe(res);}const file=url==='/'?'/index.html':url;if(!PUBLIC.has(file)){res.writeHead(404);return res.end('not found');}fs.readFile(path.join(__dirname,file),(err,data)=>{if(err){res.writeHead(404);return res.end('not found');}res.writeHead(200,{'Content-Type':MIME[path.extname(file)]||'application/octet-stream'});res.end(data);});});
+const wss=new WebSocketServer({server,path:'/ws'}),code=()=>Math.random().toString(36).slice(2,6).toUpperCase();
+const send=(ws,m)=>{if(ws.readyState===1)ws.send(JSON.stringify(m));};
+const broadcastLegacy=(r,m,except)=>{for(const c of r.clients.keys())if(c!==except)send(c,m);};
+const sockets=new Map(); // code -> Map<seat,ws>
+const publicRoom=r=>({code:r.code,seats:r.seats.map(({name,seat,online,muted})=>({name,seat,online,muted})),state:r.game,rematchVotes:r.rematch.size,resultId:r.resultId});
+const broadcastV2=(roomCode,m)=>{for(const ws of (sockets.get(roomCode)||new Map()).values())send(ws,m);};
+const lobbyV2=roomCode=>broadcastV2(roomCode,{t:'v2-lobby',room:publicRoom(v2.get(roomCode))});
+function bind(ws,roomCode,seat){if(ws.v2Code&&sockets.has(ws.v2Code))sockets.get(ws.v2Code).delete(ws.v2Seat);ws.v2Code=roomCode;ws.v2Seat=seat;if(!sockets.has(roomCode))sockets.set(roomCode,new Map());const old=sockets.get(roomCode).get(seat);if(old&&old!==ws)old.close(4001,'resumed elsewhere');sockets.get(roomCode).set(seat,ws);}
+function finishIfNeeded(room,event){if(event.resultId&&room.game?.over){const winner=room.seats[room.game.winner];verifiedResults.set(event.resultId,{userId:winner.authId||null,scored:false,at:Date.now()});}}
+setInterval(()=>{v2.reap();for(const c of sockets.keys())if(!v2.rooms.has(c))sockets.delete(c);const cutoff=Date.now()-86400000;for(const [id,x]of verifiedResults)if(x.at<cutoff)verifiedResults.delete(id);},30000).unref();
+wss.on('connection',ws=>{let roomCode=null;ws.on('message',async raw=>{let m;try{m=JSON.parse(raw)}catch(_){return;}try{
+ // v2 is isolated from the stable legacy protocol.
+ if(m.t==='v2-create'){const authId=await authUser(m.accessToken||'');const x=v2.create(m.name,authId);bind(ws,x.code,x.seat);send(ws,{t:'v2-welcome',code:x.code,seat:x.seat,token:x.token,room:publicRoom(v2.get(x.code))});return lobbyV2(x.code);}
+ if(m.t==='v2-join'){const authId=await authUser(m.accessToken||'');const x=v2.join(m.code,m.name,authId);bind(ws,x.code,x.seat);send(ws,{t:'v2-welcome',code:x.code,seat:x.seat,token:x.token,room:publicRoom(v2.get(x.code))});return lobbyV2(x.code);}
+ if(m.t==='v2-resume'){const x=v2.resume(m.code,m.token);bind(ws,String(m.code).toUpperCase(),x.seat);send(ws,{t:'v2-resumed',code:ws.v2Code,seat:x.seat,room:publicRoom(v2.get(ws.v2Code))});return lobbyV2(ws.v2Code);}
+ if(m.t.startsWith('v2-')){if(!ws.v2Code||!Number.isInteger(ws.v2Seat))throw Error('not seated');const r=v2.get(ws.v2Code);
+  if(m.t==='v2-start'){v2.start(r.code,ws.v2Seat);broadcastV2(r.code,{t:'v2-state',room:publicRoom(r),event:'start'});}
+  else if(m.t==='v2-action'){const ev=v2.act(r.code,ws.v2Seat,{kind:m.kind,idx:m.idx});finishIfNeeded(r,ev);broadcastV2(r.code,{t:'v2-state',room:publicRoom(r),event:ev.type});}
+  else if(m.t==='v2-reaction'){const reaction=v2.react(r.code,ws.v2Seat,m.emoji);broadcastV2(r.code,{t:'v2-reaction',...reaction});}
+  else if(m.t==='v2-mute'){v2.mute(r.code,ws.v2Seat,m.value);send(ws,{t:'v2-muted',value:r.seats[ws.v2Seat].muted});lobbyV2(r.code);}
+  else if(m.t==='v2-rematch'){const result=v2.rematch(r.code,ws.v2Seat);broadcastV2(r.code,{t:'v2-rematch',...result,room:publicRoom(r)});}
+  return;
+ }
+ // Legacy relay retained until v2 has passed deployment validation.
+ if(m.t==='create'){roomCode=code();legacyRooms.set(roomCode,{host:ws,clients:new Map([[ws,{name:m.name,seat:0}]]),started:false,authority:null});send(ws,{t:'created',code:roomCode});}
+ else if(m.t==='join'){const r=legacyRooms.get(m.code);if(!r||r.started||r.clients.size>=4)return send(ws,{t:'error',reason:'room unavailable'});roomCode=m.code;r.clients.set(ws,{name:m.name,seat:r.clients.size});broadcastLegacy(r,{t:'lobby',players:[...r.clients.values()].map(c=>c.name)});send(ws,{t:'joined',code:roomCode});}
+ else if(m.t==='auth-start'&&process.env.AUTHORITATIVE_DICE==='enabled'){const r=legacyRooms.get(roomCode);if(!r||ws!==r.host||r.started)return;r.started=true;r.authority=DiceEngine.create([...r.clients.values()].map(x=>x.name));broadcastLegacy(r,{t:'auth-state',state:r.authority});send(ws,{t:'auth-state',state:r.authority});}
+ else if(m.t==='auth-move'&&process.env.AUTHORITATIVE_DICE==='enabled'){const r=legacyRooms.get(roomCode);if(!r||!r.authority)return;const member=r.clients.get(ws);if(!member)return;const ev=m.kind==='roll'?DiceEngine.roll(r.authority,member.seat):DiceEngine.move(r.authority,member.seat,m.idx);broadcastLegacy(r,{t:'auth-state',event:ev.type,state:r.authority});send(ws,{t:'auth-state',event:ev.type,state:r.authority});}
+ else if(m.t==='start'||m.t==='state'||m.t==='move'){const r=legacyRooms.get(roomCode);if(!r)return;if(m.t==='start')r.started=true;if(ws===r.host)broadcastLegacy(r,m,ws);else send(r.host,m);}else if(m.t==='chat'){const r=legacyRooms.get(roomCode);if(r)broadcastLegacy(r,m,ws);}
+ }catch(e){send(ws,{t:'error',reason:e.message||'request failed'});}});
+ ws.on('close',()=>{if(ws.v2Code){const map=sockets.get(ws.v2Code);if(map&&map.get(ws.v2Seat)===ws){map.delete(ws.v2Seat);try{v2.leave(ws.v2Code,ws.v2Seat);lobbyV2(ws.v2Code)}catch(_){}}return;}const r=legacyRooms.get(roomCode);if(!r)return;r.clients.delete(ws);if(ws===r.host||r.clients.size===0){broadcastLegacy(r,{t:'closed'});legacyRooms.delete(roomCode);}else broadcastLegacy(r,{t:'lobby',players:[...r.clients.values()].map(c=>c.name)});});});
+server.listen(PORT,()=>console.log('BoardFusion live on :'+PORT+' (game at /, relay at /ws)'));
