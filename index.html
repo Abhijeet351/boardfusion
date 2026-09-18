@@ -109,6 +109,7 @@
   </div>
 </div>
 <script src="net.js"></script>
+<script src="gamify.js"></script>
 <script>
 'use strict';
 // ---------- Board geometry (15x15 grid, clockwise main track) ----------
@@ -173,6 +174,7 @@ renderPlayerList();
 document.getElementById('startbtn').onclick = ()=>{
   const seats = pcount===2 ? ['red','yellow'] : pcount===3 ? ['red','green','yellow'] : ORDER;
   players = seats.map((c,i)=>({color:c, ai:seatSel[i]==='Computer', done:false}));
+  BFGame.start('Dice Race', players.map((p,i)=>p.ai ? p.color+' CPU' : p.color.charAt(0).toUpperCase()+p.color.slice(1)));
   tokens = {}; players.forEach(p=>tokens[p.color]=[-1,-1,-1,-1]);
   turn = 0; dice = null; sixes = 0; gameOver = false; awaitingMove = false;
   document.getElementById('setup').classList.add('hidden');
@@ -225,7 +227,7 @@ function moveToken(color, idx){
   if(p===-1){ tokens[color][idx]=0; msg = pname(color)+' enters the board'; }
   else {
     p += dice; tokens[color][idx]=p;
-    if(p===56){ extra = true; msg = pname(color)+' gets a token home!'; }
+    if(p===56){ extra = true; BFGame.home(); msg = pname(color)+' gets a token home!'; }
     else if(p<=50){
       const a = absIdx(color,p);
       if(!SAFE.has(a)){
@@ -234,7 +236,7 @@ function moveToken(color, idx){
           if(pl.color===color) continue;
           tokens[pl.color].forEach((q,qi)=>{ if(q>=0 && q<=50 && absIdx(pl.color,q)===a){ tokens[pl.color][qi]=-1; cap++; } });
         }
-        if(cap){ extra = true; msg = pname(color)+' captures '+cap+' token'+(cap>1?'s':'')+'!'; }
+        if(cap){ extra = true; BFGame.capture(cap); msg = pname(color)+' captures '+cap+' token'+(cap>1?'s':'')+'!'; }
       }
     }
   }
@@ -245,6 +247,7 @@ function moveToken(color, idx){
       gameOver = true;
       document.getElementById('dicebtn').disabled = true;
       log('&#127942; '+pname(color)+' WINS! Tap New Game to play again');
+      BFGame.win((players[turn].name||color.charAt(0).toUpperCase()+color.slice(1)));
       render(); return;
     }
     msg = pname(color)+' finishes!';
@@ -455,6 +458,7 @@ document.getElementById('startonline').onclick = ()=>{
   if(lobbyNames.length<2){ document.getElementById('onlineerr').textContent='Need at least 2 players'; return; }
   const cols = seatColors(lobbyNames.length);
   players = lobbyNames.map((n,i)=>({color:cols[i], ai:false, done:false, name:n}));
+  BFGame.start('Dice Race Online', lobbyNames);
   tokens = {}; players.forEach(p=>tokens[p.color]=[-1,-1,-1,-1]);
   turn = 0; dice = null; sixes = 0; gameOver = false; awaitingMove = false;
   document.getElementById('dicebtn').disabled = false;
