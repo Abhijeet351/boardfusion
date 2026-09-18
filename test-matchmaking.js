@@ -1,0 +1,13 @@
+process.env.PORT='8793';
+require('./server.js');
+const WebSocket=require('ws'),URL='ws://127.0.0.1:8793/ws';
+const clients=[],events=new Map();let done=false;
+const fail=e=>{if(done)return;done=true;console.error('FAIL -',e);process.exit(1)};
+const wait=(ws,type,ms=1800)=>new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('timeout '+type)),ms);const list=events.get(ws)||[];events.set(ws,list);list.push({type,resolve:v=>{clearTimeout(timer);resolve(v)}})});
+const open=()=>new Promise((resolve,reject)=>{const ws=new WebSocket(URL);clients.push(ws);events.set(ws,[]);ws.on('open',()=>resolve(ws));ws.on('error',reject);ws.on('message',raw=>{const m=JSON.parse(raw);const q=events.get(ws)||[],i=q.findIndex(x=>x.type===m.t);if(i>=0)q.splice(i,1)[0].resolve(m)});});
+(async()=>{const a=await open();a.send(JSON.stringify({t:'v2-match',name:'Alice',clientId:'browser-a'}));let q=await wait(a,'v2-match-queued');if(q.position!==1)throw Error('empty queue feedback');a.send(JSON.stringify({t:'v2-match-cancel'}));await wait(a,'v2-match-cancelled');
+const a2=await open(),dup=await open();a2.send(JSON.stringify({t:'v2-match',name:'Alice',clientId:'same-browser'}));await wait(a2,'v2-match-queued');dup.send(JSON.stringify({t:'v2-match',name:'Alice 2',clientId:'same-browser'}));await wait(a2,'v2-match-cancelled');await wait(dup,'v2-match-queued');dup.send(JSON.stringify({t:'v2-match-cancel'}));await wait(dup,'v2-match-cancelled');
+const b=await open(),c=await open();b.send(JSON.stringify({t:'v2-match',name:'Bob',clientId:'browser-b'}));await wait(b,'v2-match-queued');c.send(JSON.stringify({t:'v2-match',name:'Cara',clientId:'browser-c'}));const [mb,mc]=await Promise.all([wait(b,'v2-match-found'),wait(c,'v2-match-found')]);if(mb.code!==mc.code||mb.seat!==0||mc.seat!==1||!mb.room.state)throw Error('atomic pair/start');if(mb.room.seats.length!==2)throw Error('real players only');
+const resumed=await open();resumed.send(JSON.stringify({t:'v2-resume',code:mb.code,token:mb.token}));const r=await wait(resumed,'v2-resumed');if(r.room.state.players.length!==2)throw Error('resume compatible');
+console.log('MATCHMAKING TEST: ALL PASS');done=true;clients.forEach(x=>x.close());process.exit(0);})().catch(fail);
+setTimeout(()=>fail('suite timeout'),7000);
