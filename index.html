@@ -227,6 +227,7 @@
     <button class="ctl" id="closeonline" style="margin-top:10px;width:100%">Close</button>
   </div>
 </div>
+<script src="online-presentation.js"></script>
 <script src="net.js"></script>
 <script src="gamify.js"></script>
 <script src="cloud.js"></script>
@@ -604,7 +605,7 @@ document.getElementById('showprivate').onclick=()=>document.getElementById('priv
 document.getElementById('findmatch').onclick=async()=>{const n=document.getElementById('pname_in').value.trim()||'Player';try{await ensureConn();NET.match(n)}catch(_){}};
 document.getElementById('cancelmatch').onclick=()=>NET.cancelMatch();
 document.getElementById('joinroom').onclick=async()=>{const n=document.getElementById('pname_in').value.trim()||'Guest',c=document.getElementById('roomcode').value.trim();if(!c){document.getElementById('onlineerr').textContent='Enter the room code';return}try{await ensureConn();NET.join(c,n)}catch(_){}};
-NET.on('v2-welcome',m=>{applyRoom(m.room);});NET.on('v2-match-queued',m=>{document.getElementById('connform').classList.add('hidden');document.getElementById('queueview').classList.remove('hidden');document.getElementById('queuenote').textContent=m.position>1?'Pairing now...':'You are first in line. The match starts automatically when another real player joins.';});NET.on('v2-match-found',m=>{document.getElementById('queueview').classList.add('hidden');applyRoom(m.room,'start');});NET.on('v2-match-cancelled',m=>{document.getElementById('queueview').classList.add('hidden');document.getElementById('connform').classList.remove('hidden');document.getElementById('onlineerr').textContent=m.reason||'Search cancelled';});NET.on('v2-match-timeout',m=>{document.getElementById('queueview').classList.add('hidden');document.getElementById('connform').classList.remove('hidden');document.getElementById('onlineerr').textContent=m.reason;});NET.on('v2-resumed',m=>applyRoom(m.room,'resumed'));NET.on('resumed',()=>document.getElementById('onlineerr').textContent='Seat resumed');NET.on('v2-lobby',m=>applyRoom(m.room));NET.on('v2-state',m=>applyRoom(m.room,m.event));NET.on('v2-rematch',m=>{applyRoom(m.room,m.ready?'rematch':'vote');});
+NET.on('v2-welcome',m=>{applyRoom(m.room);});NET.on('v2-match-queued',m=>{document.getElementById('connform').classList.add('hidden');document.getElementById('queueview').classList.remove('hidden');document.getElementById('queuenote').textContent=m.position>1?'Pairing now...':'You are first in line. The match starts automatically when another real player joins.';});NET.on('v2-match-found',m=>{document.getElementById('queueview').classList.add('hidden');applyRoom(m.room,'start');});NET.on('v2-match-cancelled',m=>{document.getElementById('queueview').classList.add('hidden');document.getElementById('connform').classList.remove('hidden');document.getElementById('onlineerr').textContent=m.reason||'Search cancelled';});NET.on('v2-match-timeout',m=>{document.getElementById('queueview').classList.add('hidden');document.getElementById('connform').classList.remove('hidden');document.getElementById('onlineerr').textContent=m.reason;});NET.on('v2-resumed',m=>applyRoom(m.room,'resumed'));NET.on('resumed',()=>document.getElementById('onlineerr').textContent='Seat resumed');NET.on('v2-lobby',m=>applyRoom(m.room));NET.on('v2-state',m=>applyRoom(m.room,m.event,m.roll));NET.on('v2-rematch',m=>{applyRoom(m.room,m.ready?'rematch':'vote');});
 NET.on('v2-reaction',m=>{if(NET.muted)return;reactionOverAvatar(m.seat,m.emoji)});
 NET.on('v2-displaced',m=>{document.getElementById('queueview').classList.add('hidden');document.getElementById('connform').classList.remove('hidden');document.getElementById('onlineerr').textContent=m.reason||'Continued in another tab';});
 NET.on('error',m=>{document.getElementById('onlineerr').textContent=m.reason||'Room error';if(NET.room)log('&#9888; '+escapeHtml(m.reason||'Room error'));});NET.on('closed',m=>{if(NET.room)log('Connection lost - resuming seat...');else if(m.wasQueueing){document.getElementById('queueview').classList.add('hidden');document.getElementById('connform').classList.remove('hidden');document.getElementById('onlineerr').textContent='Connection lost. Start the search again.';}});
@@ -613,8 +614,8 @@ document.querySelectorAll('[data-react]').forEach(b=>b.onclick=()=>NET.react(b.d
 if(location.hash==='#online')document.getElementById('online').classList.remove('hidden');
 
 
-function applyRoom(room,event){
- const snapshot=JSON.parse(JSON.stringify(room));
+function applyRoom(room,event,roll){
+ const snapshot=JSON.parse(JSON.stringify(room)),rollPayload=roll&&JSON.parse(JSON.stringify(roll));
  onlinePresentation=onlinePresentation.then(async()=>{
   const prev=lastOnlineSnapshot&&JSON.parse(JSON.stringify(lastOnlineSnapshot));
   if(snapshot.state&&event==='rolled'){setTransition(true);rollSfxArmed=true;finishDiceShake(snapshot.state.dice);await flashMessage('Rolled <b>'+snapshot.state.dice+'</b>','result',COLORS[snapshot.state.players[snapshot.state.turn].color])}
@@ -624,9 +625,7 @@ function applyRoom(room,event){
    if(slot>=0){players=prev.players.map(p=>({color:p.color,ai:false,done:p.done,name:p.name}));tokens=JSON.parse(JSON.stringify(prev.tokens));turn=prev.turn;dice=prev.dice;gameOver=prev.over;awaitingMove=false;render();setTransition(true);await animateTokenGhost(movedColor,prev.tokens[movedColor][slot],snapshot.state.tokens[movedColor][slot],slot)}
   }
   if(snapshot.state&&(event==='no-move'||event==='forfeit')){
-   const n=snapshot.state.players.length;let rp=null;
-   for(let i=1;i<=n;i++){const idx=(snapshot.state.turn-i+n)%n;if(!snapshot.state.players[idx].done){rp=snapshot.state.players[idx];break;}}
-   if(rp){setTransition(true);await flashMessage(escapeHtml(rp.name)+(event==='forfeit'?' rolled three 6s':' had no move'),'result',COLORS[rp.color]);}
+   await BFOnlinePresentation.revealTerminal({state:snapshot.state,event,roll:rollPayload,setTransition,armRoll:()=>{rollSfxArmed=true},finishDiceShake,flashMessage,colors:COLORS,escapeHtml,wait:ms=>new Promise(r=>setTimeout(r,ms))});
   }
   applyRoomNow(snapshot,event);
   if(snapshot.state&&!snapshot.state.over){
@@ -670,4 +669,4 @@ if(location.hash==='#demo'){
 </script>
 
 </body>
-</html>
+  </html>
