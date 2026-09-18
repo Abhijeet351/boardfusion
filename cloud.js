@@ -8,6 +8,7 @@ window.BFCloud=(function(){
  async function signUp(email,password,name){const x=await req('/auth/v1/signup',{method:'POST',body:JSON.stringify({email,password,data:{display_name:name}})});if(x.access_token)save(x);return x;}
  async function signOut(){if(token)try{await req('/auth/v1/logout',{method:'POST'})}catch(_){}token=null;user=null;localStorage.removeItem('bf_cloud_session');}
  async function leaderboard(){return req('/rest/v1/rpc/get_leaderboard',{method:'POST',body:JSON.stringify({result_limit:50})});}
+ async function recordWin(game){if(!token) return {skipped:true};const id=(crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random());const r=await fetch('/api/result',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({event_id:id,game,winner:true})});const d=await r.json();if(!r.ok)throw Error(d.error||'Score update failed');return d;}
  async function rename(display_name){if(!user)throw Error('Sign in first');return req('/rest/v1/profiles?id=eq.'+encodeURIComponent(user.id),{method:'PATCH',headers:{Prefer:'return=representation'},body:JSON.stringify({display_name})});}
- load();return{signIn,signUp,signOut,leaderboard,rename,get user(){return user}};
+ load();return{signIn,signUp,signOut,leaderboard,rename,recordWin,get user(){return user}};
 })();
