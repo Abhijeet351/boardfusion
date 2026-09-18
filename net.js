@@ -1,29 +1,13 @@
-// BoardFusion room client - talks to server.js relay.
-// Host runs the authoritative game; clients send move intents.
-window.NET = (function(){
-  let ws = null, mode = 'off', room = null, name = null;
-  const handlers = {};
-  const on = (ev, fn) => { handlers[ev] = fn; };
-  const emit = (ev, d) => { if (handlers[ev]) handlers[ev](d); };
-  function connect(url){
-    return new Promise((res, rej) => {
-      ws = new WebSocket(url);
-      ws.onopen = () => res();
-      ws.onerror = e => rej(e);
-      ws.onclose = () => emit('closed', {});
-      ws.onmessage = e => {
-        let m; try { m = JSON.parse(e.data); } catch(_) { return; }
-        if (m.t === 'created') { mode = 'host'; room = m.code; }
-        else if (m.t === 'joined') { mode = 'client'; room = m.code; }
-        emit(m.t === 'move' ? 'intent' : m.t, m);
-      };
-    });
-  }
-  const create = n => { name = n; ws.send(JSON.stringify({t:'create', name:n})); };
-  const join = (code, n) => { name = n; ws.send(JSON.stringify({t:'join', code:code.toUpperCase(), name:n})); };
-  const intent = p => { p.t = 'move'; p.from = name; ws.send(JSON.stringify(p)); };
-  const hostSend = p => { p.t = 'state'; ws.send(JSON.stringify(p)); };
-  const hostStart = p => { p.t = 'start'; ws.send(JSON.stringify(p)); };
-  return { connect, create, join, intent, hostSend, hostStart, on,
-    get mode(){ return mode; }, get room(){ return room; }, get name(){ return name; } };
+// BoardFusion server-authoritative room client with seat-token resume.
+window.NET=(function(){
+ let ws=null,url=null,room=null,seat=null,name=null,muted=false,closing=false,retries=0;const handlers={};
+ const on=(ev,fn)=>{handlers[ev]=fn},emit=(ev,d)=>{if(handlers[ev])handlers[ev](d)};
+ const key=c=>'bf_room_v2_'+c;
+ function send(m){if(ws&&ws.readyState===1)ws.send(JSON.stringify(m));else emit('error',{reason:'Not connected'});}
+ function open(target){url=target;closing=false;return new Promise((resolve,reject)=>{ws=new WebSocket(url);ws.onopen=()=>{retries=0;resolve();};ws.onerror=reject;ws.onmessage=e=>{let m;try{m=JSON.parse(e.data)}catch(_){return;}if(m.t==='v2-welcome'){room=m.code;seat=m.seat;localStorage.setItem(key(room),JSON.stringify({code:room,token:m.token,name,url}));}if(m.t==='v2-resumed'){room=m.code;seat=m.seat;emit('resumed',m);}if(m.t==='v2-muted')muted=!!m.value;emit(m.t,m);};ws.onclose=()=>{emit('closed',{});if(!closing&&room)setTimeout(reconnect,Math.min(8000,500*Math.pow(2,retries++)));};});}
+ async function reconnect(){const saved=JSON.parse(localStorage.getItem(key(room))||'null');if(!saved)return;try{await open(saved.url||url);send({t:'v2-resume',code:saved.code,token:saved.token});}catch(_){if(!closing)setTimeout(reconnect,Math.min(8000,500*Math.pow(2,retries++)));}}
+ const access=()=>window.BFCloud&&BFCloud.token||null;
+ const create=n=>{name=n;send({t:'v2-create',name:n,accessToken:access()});};
+ const join=(c,n)=>{name=n;send({t:'v2-join',code:c.toUpperCase(),name:n,accessToken:access()});};
+ return{connect:open,create,join,on,start:()=>send({t:'v2-start'}),roll:()=>send({t:'v2-action',kind:'roll'}),pick:idx=>send({t:'v2-action',kind:'pick',idx}),react:emoji=>send({t:'v2-reaction',emoji}),mute:v=>{muted=!!v;send({t:'v2-mute',value:muted})},rematch:()=>send({t:'v2-rematch'}),get mode(){return room?'v2':'off'},get room(){return room},get seat(){return seat},get name(){return name},get muted(){return muted}};
 })();
