@@ -255,9 +255,9 @@ function setDiceFace(n,animate=false){
   if(!face){face=document.createElement('span');face.id='dieface';face.setAttribute('aria-hidden','true');b.prepend(face)}
   paintPips(face,n);
   b.setAttribute('aria-label','Roll dice. Current face '+n);
-  if(animate||diceAwaitingResult){clearTimeout(diceAnimTimer);b.classList.remove('shaking','landed','revealing');void b.offsetWidth;b.classList.add('revealing');rollDieOntoBoard(n);diceAwaitingResult=false;diceAnimTimer=setTimeout(()=>{b.classList.remove('revealing');b.classList.add('landed')},1260)}
+  if(animate||diceAwaitingResult){clearTimeout(diceAnimTimer);b.classList.remove('shaking','landed','revealing');void b.offsetWidth;b.classList.add('revealing');rollSounds(n);rollDieOntoBoard(n);diceAwaitingResult=false;diceAnimTimer=setTimeout(()=>{b.classList.remove('revealing');b.classList.add('landed')},1260)}
 }
-function beginDiceShake(){diceSound();const b=document.getElementById('dicebtn');if(b.disabled)return;clearTimeout(diceAnimTimer);b.classList.remove('revealing','landed');const boardDie=document.getElementById('boarddie');boardDie.classList.remove('board-rolling','board-landed');boardDie.style.opacity='';void b.offsetWidth;b.classList.add('shaking');b.setAttribute('aria-busy','true');diceAwaitingResult=true}
+function beginDiceShake(){const b=document.getElementById('dicebtn');if(b.disabled)return;rollSfxArmed=true;clearTimeout(diceAnimTimer);b.classList.remove('revealing','landed');const boardDie=document.getElementById('boarddie');boardDie.classList.remove('board-rolling','board-landed');boardDie.style.opacity='';void b.offsetWidth;b.classList.add('shaking');b.setAttribute('aria-busy','true');diceAwaitingResult=true;startCupRattle()}
 function finishDiceShake(n){const b=document.getElementById('dicebtn');setDiceFace(n,true);b.removeAttribute('aria-busy')}
 
 // ---------- Game state ----------
@@ -274,24 +274,39 @@ function isLocalTurn(){return !(window.NET&&NET.mode==='v2')||NET.seat===turn}
 function updateDiceControl(){const b=document.getElementById('dicebtn'),pl=players[turn];const visible=!gameOver&&turnReady&&!transitionBusy&&!!pl&&!pl.ai&&isLocalTurn()&&!awaitingMove;b.classList.toggle('turn-hidden',!visible);b.disabled=!visible}
 function flashMessage(html,kind='result',color){const el=document.getElementById('turnflash');el.className='';el.innerHTML=html;el.style.setProperty('--flash-color',color||'#54e8ff');void el.offsetWidth;el.className='show '+kind;return new Promise(r=>setTimeout(r,840))}
 function announceTurn(delay=0){clearTimeout(turnTimer);turnReady=false;setTransition(true);updateDiceControl();return new Promise(resolve=>{turnTimer=setTimeout(async()=>{const pl=players[turn];if(!pl||gameOver){setTransition(false);resolve();return}const oldDie=document.getElementById('boarddie');oldDie.classList.remove('board-rolling','board-landed');log(tname(pl.color)+' to roll');playerCards();await flashMessage(escapeHtml(pl.name||pl.color)+"'s turn",'next',COLORS[pl.color]);turnReady=true;setTransition(false);showPassPhone();updateDiceControl();maybeAI();resolve()},delay)})}
-function animateTokenGhost(color,fromP,toP,slot){return new Promise(resolve=>{const stage=document.getElementById('boardstage'),wrap=document.getElementById('boardwrap'),r=wrap.getBoundingClientRect(),sr=stage.getBoundingClientRect(),scale=r.width/600,[fx,fy]=tokenXY(color,fromP,slot),[tx,ty]=tokenXY(color,toP,slot);const el=document.createElement('span');el.className='moving-token';el.style.setProperty('--token-color',COLORS[color]);el.style.left=(r.left-sr.left+fx*scale)+'px';el.style.top=(r.top-sr.top+fy*scale)+'px';stage.appendChild(el);requestAnimationFrame(()=>requestAnimationFrame(()=>{el.style.left=(r.left-sr.left+tx*scale)+'px';el.style.top=(r.top-sr.top+ty*scale)+'px'}));setTimeout(()=>{el.remove();resolve()},620)})}
+function animateTokenGhost(color,fromP,toP,slot){return new Promise(resolve=>{moveTicks(fromP===-1?1:Math.max(1,Math.abs(toP-fromP)),580);const stage=document.getElementById('boardstage'),wrap=document.getElementById('boardwrap'),r=wrap.getBoundingClientRect(),sr=stage.getBoundingClientRect(),scale=r.width/600,[fx,fy]=tokenXY(color,fromP,slot),[tx,ty]=tokenXY(color,toP,slot);const el=document.createElement('span');el.className='moving-token';el.style.setProperty('--token-color',COLORS[color]);el.style.left=(r.left-sr.left+fx*scale)+'px';el.style.top=(r.top-sr.top+fy*scale)+'px';stage.appendChild(el);requestAnimationFrame(()=>requestAnimationFrame(()=>{el.style.left=(r.left-sr.left+tx*scale)+'px';el.style.top=(r.top-sr.top+ty*scale)+'px'}));setTimeout(()=>{el.remove();resolve()},620)})}
 const chip = c => '<span class="chip" style="background:'+COLORS[c]+'"></span>';
 const pname = c => chip(c)+c.charAt(0).toUpperCase()+c.slice(1);
 const tname = c => { const p=players.find(x=>x.color===c); return chip(c)+escapeHtml(p&&p.name?p.name:(c.charAt(0).toUpperCase()+c.slice(1))); };
 
 // ---------- Nostalgia settings (presentation + local unranked options only) ----------
 let nostalgia={theme:'holiday',token:'wood',sound:false,quickEntry:false,safeStars:true,passPhone:true,names:['Papa','Mummy','Didi','Chintu']};
-let audioCtx=null,fanNode=null,fanGain=null;
-function tone(freq,dur=.08,type='sine',gain=.05){if(!nostalgia.sound)return;audioCtx=audioCtx||new(window.AudioContext||window.webkitAudioContext)();const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type=type;o.frequency.value=freq;g.gain.setValueAtTime(gain,audioCtx.currentTime);g.gain.exponentialRampToValueAtTime(.001,audioCtx.currentTime+dur);o.connect(g).connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+dur)}
+let audioCtx=null,fanNode=null,fanGain=null,_noiseBuf=null,rattleTimer=null;
+const SFXLOG=window.__sfx=[];const sfxMark=n=>{SFXLOG.push(n);if(SFXLOG.length>240)SFXLOG.shift()};
+const reducedMotion=()=>!!window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+function ensureCtx(){if(!nostalgia.sound)return null;try{audioCtx=audioCtx||new(window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')audioCtx.resume();return audioCtx}catch(e){return null}}
+function tone(freq,dur=.08,type='sine',gain=.05){const ac=ensureCtx();if(!ac)return;const o=ac.createOscillator(),g=ac.createGain();o.type=type;o.frequency.value=freq;g.gain.setValueAtTime(gain,ac.currentTime);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+dur);o.connect(g).connect(ac.destination);o.start();o.stop(ac.currentTime+dur)}
+function noiseBuf(){if(!_noiseBuf){const len=audioCtx.sampleRate*2;_noiseBuf=audioCtx.createBuffer(1,len,audioCtx.sampleRate);const d=_noiseBuf.getChannelData(0);for(let i=0;i<len;i++)d[i]=Math.random()*2-1}return _noiseBuf}
+function burst(dur,freq,gain,type='bandpass',q=1.6){const ac=ensureCtx();if(!ac)return;const s=ac.createBufferSource();s.buffer=noiseBuf();const f=ac.createBiquadFilter();f.type=type;f.frequency.value=freq;f.Q.value=q;const g=ac.createGain();g.gain.setValueAtTime(gain,ac.currentTime);g.gain.exponentialRampToValueAtTime(.0008,ac.currentTime+dur);s.connect(f).connect(g).connect(ac.destination);s.start();s.stop(ac.currentTime+dur)}
+function sweep(dur,f0,f1,gain){const ac=ensureCtx();if(!ac)return;const s=ac.createBufferSource();s.buffer=noiseBuf();s.loop=true;const f=ac.createBiquadFilter();f.type='bandpass';f.Q.value=1.3;f.frequency.setValueAtTime(f0,ac.currentTime);f.frequency.exponentialRampToValueAtTime(f1,ac.currentTime+dur);const g=ac.createGain();g.gain.setValueAtTime(.0001,ac.currentTime);g.gain.exponentialRampToValueAtTime(gain,ac.currentTime+dur*.35);g.gain.exponentialRampToValueAtTime(.0008,ac.currentTime+dur);s.connect(f).connect(g).connect(ac.destination);s.start();s.stop(ac.currentTime+dur)}
 function tokenSound(){tone(180,.055,'triangle',.06);setTimeout(()=>tone(125,.05,'triangle',.035),45)}
-function diceSound(){[210,165,245,145].forEach((f,i)=>setTimeout(()=>tone(f,.055,'square',.025),i*65))}
+function cupClick(g){burst(.05,1700+Math.random()*900,g,'bandpass',2.4);tone(300+Math.random()*90,.032,'triangle',g*.7)}
+function rattlePattern(){[0,130,260,390].forEach(t=>{const fire=()=>{if(document.getElementById('dicebtn').classList.contains('shaking'))cupClick(t?.015:.022)};if(t)setTimeout(fire,t);else fire()})}
+function startCupRattle(){clearTimeout(rattleTimer);if(!nostalgia.sound)return;sfxMark('rattle');if(reducedMotion()){cupClick(.016);return}if(!document.getElementById('dicebtn').classList.contains('shaking')){cupClick(.018);return}rattlePattern();let n=0;const loop=()=>{rattleTimer=setTimeout(()=>{if(++n>7||!document.getElementById('dicebtn').classList.contains('shaking'))return;rattlePattern();loop()},620)};loop()}
+let rollSfxArmed=false;
+function cupLiftSound(){sfxMark('lift');if(!reducedMotion())sweep(.26,480,2400,.018)}
+function dieTock(g,pitch){tone(pitch+Math.random()*70,.045,'triangle',g);burst(.04,1300,g*.5,'bandpass',2)}
+function tumbleSounds(){sfxMark('tumble');if(reducedMotion()){dieTock(.024,300);return}[745,945,1116,1255,1380].forEach((t,i)=>setTimeout(()=>dieTock(.024-i*.0028,340+Math.random()*120),t));setTimeout(()=>{sfxMark('land');tone(148,.11,'sine',.05);burst(.09,420,.032,'lowpass')},1550)}
+function rollSounds(n){if(!nostalgia.sound||!rollSfxArmed)return;rollSfxArmed=false;cupLiftSound();tumbleSounds()}
+function moveTick(k){tone(460+k*30,.05,'triangle',.03);burst(.028,2300,.011,'bandpass',3)}
+function moveTicks(steps,dur){if(!nostalgia.sound)return;sfxMark('move'+Math.min(Math.max(steps,1),6));if(reducedMotion()){setTimeout(()=>moveTick(0),Math.min(dur,90));return}const n=Math.min(Math.max(steps,1),6);for(let k=0;k<n;k++)setTimeout(()=>moveTick(k),(k+.6)*(dur/n))}
 function setFan(on){if(!on||!nostalgia.sound){if(fanGain)fanGain.gain.value=0;return}audioCtx=audioCtx||new(window.AudioContext||window.webkitAudioContext)();if(!fanNode){const len=audioCtx.sampleRate*2,b=audioCtx.createBuffer(1,len,audioCtx.sampleRate),d=b.getChannelData(0);for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*.11;fanNode=audioCtx.createBufferSource();fanNode.buffer=b;fanNode.loop=true;const filter=audioCtx.createBiquadFilter();filter.type='lowpass';filter.frequency.value=190;fanGain=audioCtx.createGain();fanGain.gain.value=.025;fanNode.connect(filter).connect(fanGain).connect(audioCtx.destination);fanNode.start()}else fanGain.gain.value=.025}
 function applyTheme(t){nostalgia.theme=t;document.body.className=t==='neon'?'':('theme-nani theme-'+t);document.getElementById('tagline').textContent=t==='neon'?'Roll hard · Play loud':({holiday:'Summer games · Family stories',monsoon:'Rain outside · Game inside',diwali:'Lights on · Game on'}[t]);document.getElementById('themequick').textContent=t==='neon'?'⚡ Neon arcade':'🪵 Nani\'s House';render()}
 function selectChoice(root,key,val){document.querySelectorAll(root+' .choice').forEach(b=>b.classList.toggle('sel',b.dataset[key]===val))}
 document.getElementById('themes').onclick=e=>{const b=e.target.closest('[data-theme]');if(!b)return;selectChoice('#themes','theme',b.dataset.theme);applyTheme(b.dataset.theme)};
 document.getElementById('tokensets').onclick=e=>{const b=e.target.closest('[data-token]');if(!b)return;nostalgia.token=b.dataset.token;selectChoice('#tokensets','token',nostalgia.token);render()};
 document.getElementById('namepresets').onclick=e=>{const b=e.target.closest('[data-names]');if(!b)return;nostalgia.names=b.dataset.names.split(',');document.querySelectorAll('#namepresets .choice').forEach(x=>x.classList.toggle('sel',x===b));renderPlayerList()};
-document.getElementById('soundopt').onchange=e=>{nostalgia.sound=e.target.checked;if(nostalgia.sound){tone(330,.1,'sine',.04);setFan(true)}else setFan(false)};
+document.getElementById('soundopt').onchange=e=>{nostalgia.sound=e.target.checked;if(nostalgia.sound){ensureCtx();tone(330,.1,'sine',.04);setFan(true)}else{setFan(false);clearTimeout(rattleTimer)}};
 document.getElementById('quickentry').onchange=e=>nostalgia.quickEntry=e.target.checked;document.getElementById('safestars').onchange=e=>nostalgia.safeStars=e.target.checked;document.getElementById('passphone').onchange=e=>nostalgia.passPhone=e.target.checked;
 document.getElementById('themequick').onclick=()=>applyTheme(nostalgia.theme==='neon'?'holiday':'neon');function openSetup(){document.getElementById('setup').classList.remove('hidden');document.getElementById('closesetup').classList.toggle('hidden',gameOver);setTimeout(()=>document.getElementById('setup-title').focus?.(),0)}document.getElementById('customize').onclick=openSetup;document.getElementById('closesetup').onclick=()=>document.getElementById('setup').classList.add('hidden');
 function showPassPhone(){if(!nostalgia.passPhone||!players[turn]||players[turn].ai||window.NET?.mode==='v2'||players.filter(p=>!p.ai).length<2)return;const el=document.createElement('div');el.className='pass-overlay';el.innerHTML='<div class="pass-card"><small>PASS THE PHONE</small><b>'+escapeHtml(nostalgia.names[turn]||players[turn].color)+'\'s turn</b><p>Hand the board over without peeking.</p><button>Ready to roll</button></div>';document.body.appendChild(el);el.querySelector('button').onclick=()=>el.remove()}
@@ -419,7 +434,7 @@ function maybeAI(){
   setTimeout(()=>{
     if(gameOver||awaitingMove||transitionBusy||!turnReady) return;
     const d = 1+Math.floor(Math.random()*6);
-    dice=d;beginDiceShake();finishDiceShake(d);turnReady=false;setTransition(true);flashMessage('Rolled <b>'+d+'</b>','result',COLORS[pl.color]);
+    dice=d;beginDiceShake();rollSfxArmed=true;finishDiceShake(d);turnReady=false;setTransition(true);flashMessage('Rolled <b>'+d+'</b>','result',COLORS[pl.color]);
     if(d===6) sixes++; else sixes=0;
     if(sixes===3){ log(tname(pl.color)+' (AI) rolled three 6s - turn over'); sixes=0; render(); setTimeout(nextTurn,800); return; }
     const mv = getMovable(pl.color,d);
@@ -588,7 +603,7 @@ function applyRoom(room,event){
  const snapshot=JSON.parse(JSON.stringify(room));
  onlinePresentation=onlinePresentation.then(async()=>{
   const prev=lastOnlineSnapshot&&JSON.parse(JSON.stringify(lastOnlineSnapshot));
-  if(snapshot.state&&event==='rolled'){setTransition(true);finishDiceShake(snapshot.state.dice);await flashMessage('Rolled <b>'+snapshot.state.dice+'</b>','result',COLORS[snapshot.state.players[snapshot.state.turn].color])}
+  if(snapshot.state&&event==='rolled'){setTransition(true);rollSfxArmed=true;finishDiceShake(snapshot.state.dice);await flashMessage('Rolled <b>'+snapshot.state.dice+'</b>','result',COLORS[snapshot.state.players[snapshot.state.turn].color])}
   if(snapshot.state&&event==='moved'&&prev){
    const movedColor=prev.players[prev.turn]?.color;let slot=-1;
    if(movedColor)slot=(snapshot.state.tokens[movedColor]||[]).findIndex((v,i)=>v!==(prev.tokens[movedColor]||[])[i]);
