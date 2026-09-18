@@ -24,7 +24,7 @@ async function scoreResult(req,res){
  pr=await fetch(SUPABASE_URL+'/rest/v1/profiles?id=eq.'+encodeURIComponent(userId),{method:'PATCH',headers:{...h,Prefer:'return=minimal'},body:JSON.stringify(next)});if(!pr.ok)return json(res,502,{error:'score write failed'});
  verified.scored=true;const out={ok:true,xp:next.xp,wins:next.wins,matches:next.matches};scoredEvents.set(input.event_id,out);setTimeout(()=>{scoredEvents.delete(input.event_id);verifiedResults.delete(input.event_id)},86400000);return json(res,200,out);
 }
-const PUBLIC=new Set(['/','/verify-v2.html','/index.html','/marble.html','/net.js','/gamify.js','/cloud.js','/landing.html','/maintenance.html','/icon.png','/assets/happy-vibes.opus']);
+const PUBLIC=new Set(['/','/verify-v2.html','/index.html','/marble.html','/net.js','/online-presentation.js','/gamify.js','/cloud.js','/landing.html','/maintenance.html','/icon.png','/assets/happy-vibes.opus']);
 const legacyRooms=new Map(),v2=new Rooms({ttl:120000});
 const server=http.createServer((req,res)=>{const url=req.url.split('?')[0];if(url==='/api/result'&&req.method==='POST')return void scoreResult(req,res).catch(()=>json(res,500,{error:'score error'}));if(url==='/healthz')return json(res,200,{ok:true,rooms:legacyRooms.size+v2.rooms.size});const maintenance=process.env.MAINTENANCE_MODE==='on';if(maintenance&&['/','/index.html','/marble.html','/landing.html'].includes(url)){res.writeHead(503,{'Content-Type':'text/html; charset=utf-8','Retry-After':'900'});return fs.createReadStream(path.join(__dirname,'maintenance.html')).pipe(res);}const file=(url==='/'||url==='/verify-v2.html')?'/index.html':url;if(!PUBLIC.has(file)){res.writeHead(404);return res.end('not found');}fs.readFile(path.join(__dirname,file),(err,data)=>{if(err){res.writeHead(404);return res.end('not found');}res.writeHead(200,{'Content-Type':MIME[path.extname(file)]||'application/octet-stream'});res.end(data);});});
 const wss=new WebSocketServer({server,path:'/ws'}),code=()=>Math.random().toString(36).slice(2,6).toUpperCase();
@@ -51,7 +51,7 @@ wss.on('connection',ws=>{let roomCode=null;ws.on('message',async raw=>{let m;try
  if(m.t==='v2-resume'){const x=v2.resume(m.code,m.token);bind(ws,String(m.code).toUpperCase(),x.seat);send(ws,{t:'v2-resumed',code:ws.v2Code,seat:x.seat,room:publicRoom(v2.get(ws.v2Code))});return lobbyV2(ws.v2Code);}
  if(m.t.startsWith('v2-')){if(!ws.v2Code||!Number.isInteger(ws.v2Seat))throw Error('not seated');const r=v2.get(ws.v2Code);
   if(m.t==='v2-start'){v2.start(r.code,ws.v2Seat);broadcastV2(r.code,{t:'v2-state',room:publicRoom(r),event:'start'});}
-  else if(m.t==='v2-action'){const ev=v2.act(r.code,ws.v2Seat,{kind:m.kind,idx:m.idx});finishIfNeeded(r,ev);broadcastV2(r.code,{t:'v2-state',room:publicRoom(r),event:ev.type});}
+  else if(m.t==='v2-action'){const ev=v2.act(r.code,ws.v2Seat,{kind:m.kind,idx:m.idx});finishIfNeeded(r,ev);broadcastV2(r.code,{t:'v2-state',room:publicRoom(r),event:ev.type,roll:Number.isInteger(ev.rolled)?{value:ev.rolled,seat:ev.actor}:null});}
   else if(m.t==='v2-reaction'){const reaction=v2.react(r.code,ws.v2Seat,m.emoji);broadcastV2(r.code,{t:'v2-reaction',...reaction});}
   else if(m.t==='v2-mute'){v2.mute(r.code,ws.v2Seat,m.value);send(ws,{t:'v2-muted',value:r.seats[ws.v2Seat].muted});lobbyV2(r.code);}
   else if(m.t==='v2-rematch'){const result=v2.rematch(r.code,ws.v2Seat);broadcastV2(r.code,{t:'v2-rematch',...result,room:publicRoom(r)});}
