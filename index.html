@@ -93,6 +93,12 @@
   #boarddie.board-landed{left:56%;top:58%;opacity:1;transform:translate(-50%,-50%) rotate(0);box-shadow:0 5px 0 #b8c4cb,0 10px 15px rgba(0,0,0,.38)}
   @keyframes boardDieTumble{0%,34%{left:50%;top:102%;opacity:0;transform:translate(-50%,-50%) rotate(-25deg) scale(.68)}39%{opacity:1}48%{left:53%;top:85%;transform:translate(-50%,-50%) rotate(145deg) scale(.82)}61%{left:62%;top:61%;transform:translate(-50%,-50%) rotate(350deg) scale(1)}72%{left:50%;top:51%;transform:translate(-50%,-50%) rotate(520deg) scale(.96)}81%{left:59%;top:63%;transform:translate(-50%,-50%) rotate(630deg) scale(1)}89%{left:54%;top:55%;transform:translate(-50%,-50%) rotate(695deg) scale(.98)}95%{left:57%;top:60%;transform:translate(-50%,-50%) rotate(715deg)}100%{left:56%;top:58%;opacity:1;transform:translate(-50%,-50%) rotate(720deg)}}
   #dicebtn:disabled{opacity:.58}#dicebtn:not(:disabled):hover{transform:none}#dicebtn:not(:disabled):active{transform:scale(.97)}
+  #dicebtn.turn-hidden{display:none!important}
+  #turnflash{position:absolute;left:50%;top:50%;z-index:12;min-width:150px;max-width:78%;padding:12px 18px;border:2px solid rgba(255,255,255,.88);border-radius:18px;background:rgba(9,14,32,.91);color:#fff;text-align:center;font-size:19px;font-weight:950;letter-spacing:.3px;box-shadow:0 18px 45px rgba(0,0,0,.46),0 0 0 5px rgba(84,232,255,.14);opacity:0;transform:translate(-50%,-50%) scale(.78);pointer-events:none}
+  #turnflash.show{animation:turnFlashIn .82s cubic-bezier(.2,.75,.2,1) both}#turnflash.next{border-color:var(--flash-color,#54e8ff);box-shadow:0 18px 45px rgba(0,0,0,.46),0 0 0 6px color-mix(in srgb,var(--flash-color,#54e8ff) 28%,transparent)}
+  @keyframes turnFlashIn{0%{opacity:0;transform:translate(-50%,-50%) scale(.72)}18%,72%{opacity:1;transform:translate(-50%,-50%) scale(1.05)}100%{opacity:0;transform:translate(-50%,-50%) scale(.96)}}
+  .moving-token{position:absolute;z-index:11;width:28px;height:28px;border:3px solid #fff;border-radius:50%;background:var(--token-color);box-shadow:0 5px 12px rgba(0,0,0,.42),0 0 0 4px color-mix(in srgb,var(--token-color) 28%,transparent);pointer-events:none;transform:translate(-50%,-50%);transition:left .58s cubic-bezier(.18,.76,.24,1),top .58s cubic-bezier(.18,.76,.24,1)}
+  body.transitioning #board{pointer-events:none}
   @media(max-width:540px){#boardstage{width:min(92vw,520px)}.player-card{width:82px;padding:4px;gap:4px;border-radius:11px}.player-card .player-avatar{width:27px;height:27px}.player-card .player-name{font-size:9px}.player-card[data-color="red"]{left:4px;top:4px}.player-card[data-color="green"]{right:4px;top:4px}.player-card[data-color="yellow"]{right:4px;bottom:4px}.player-card[data-color="blue"]{left:4px;bottom:4px}#dicebtn{width:106px;height:104px;transform:scale(.92)}}
 
   /* Summer at Nani's House: warm, tactile nostalgia with neon kept as a switchable option. */
@@ -148,7 +154,7 @@
 <div id="ludo-view">
   <section class="arena">
   <div id="statusbar" role="status" aria-live="polite" aria-atomic="true">Set up a game to begin</div>
-  <div id="boardstage"><div id="boardwrap"><canvas id="board" width="600" height="600" tabindex="0" aria-label="Ludo board. Roll the die, then tap a highlighted token when asked."></canvas></div><div id="playerrail" aria-live="polite"></div><div id="boarddie" aria-hidden="true"></div></div>
+  <div id="boardstage"><div id="boardwrap"><canvas id="board" width="600" height="600" tabindex="0" aria-label="Ludo board. Roll the die, then tap a highlighted token when asked."></canvas></div><div id="playerrail" aria-live="polite"></div><div id="boarddie" aria-hidden="true"></div><div id="turnflash" role="status" aria-live="assertive" aria-atomic="true"></div></div>
   <div id="controls">
     <button id="dicebtn" disabled></button>
     <button id="newgame">New Game<span class="control-label">Local</span></button>
@@ -240,7 +246,7 @@ const SAFE = new Set([0,8,13,21,26,34,39,47]);
 const COLORS = {red:'#e53935', green:'#43a047', yellow:'#f9a825', blue:'#1e88e5'};
 const ORDER = ['red','green','yellow','blue'];
 const PIPS = {1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
-let diceAnimTimer=null,diceAwaitingResult=false;
+let diceAnimTimer=null,diceAwaitingResult=false,transitionBusy=false,turnReady=false,turnTimer=null,onlinePresentation=Promise.resolve();
 function paintPips(el,n){el.innerHTML='';for(let i=0;i<9;i++){const pip=document.createElement('span');pip.className='pip'+(PIPS[n].includes(i)?' on':'');el.appendChild(pip)}}
 function rollDieOntoBoard(n){const die=document.getElementById('boarddie');paintPips(die,n);die.setAttribute('aria-label','Rolled '+n);die.classList.remove('board-rolling','board-landed');void die.offsetWidth;die.classList.add('board-rolling');setTimeout(()=>{die.classList.remove('board-rolling');die.classList.add('board-landed')},1560)}
 function setDiceFace(n,animate=false){
@@ -263,6 +269,12 @@ let tokens = {};             // color -> [p..]  -1 yard, 0..50 track, 51..56 hom
 let turn = 0, dice = null, awaitingMove = false, gameOver = true, sixes = 0;
 let movableCache = [];
 let log = m => { const bar=document.getElementById('statusbar');bar.innerHTML=m;bar.dataset.state=(/tap a glowing token/i.test(bar.textContent)?'choose':/to roll/i.test(bar.textContent)?'roll':'info'); };
+function setTransition(on){transitionBusy=on;document.body.classList.toggle('transitioning',on);updateDiceControl()}
+function isLocalTurn(){return !(window.NET&&NET.mode==='v2')||NET.seat===turn}
+function updateDiceControl(){const b=document.getElementById('dicebtn'),pl=players[turn];const visible=!gameOver&&turnReady&&!transitionBusy&&!!pl&&!pl.ai&&isLocalTurn()&&!awaitingMove;b.classList.toggle('turn-hidden',!visible);b.disabled=!visible}
+function flashMessage(html,kind='result',color){const el=document.getElementById('turnflash');el.className='';el.innerHTML=html;el.style.setProperty('--flash-color',color||'#54e8ff');void el.offsetWidth;el.className='show '+kind;return new Promise(r=>setTimeout(r,840))}
+function announceTurn(delay=0){clearTimeout(turnTimer);turnReady=false;setTransition(true);updateDiceControl();return new Promise(resolve=>{turnTimer=setTimeout(async()=>{const pl=players[turn];if(!pl||gameOver){setTransition(false);resolve();return}log(pname(pl.color)+' to roll');playerCards();await flashMessage(escapeHtml(pl.name||pl.color)+"'s turn",'next',COLORS[pl.color]);turnReady=true;setTransition(false);showPassPhone();updateDiceControl();maybeAI();resolve()},delay)})}
+function animateTokenGhost(color,fromP,toP,slot){return new Promise(resolve=>{const stage=document.getElementById('boardstage'),wrap=document.getElementById('boardwrap'),r=wrap.getBoundingClientRect(),sr=stage.getBoundingClientRect(),scale=r.width/600,[fx,fy]=tokenXY(color,fromP,slot),[tx,ty]=tokenXY(color,toP,slot);const el=document.createElement('span');el.className='moving-token';el.style.setProperty('--token-color',COLORS[color]);el.style.left=(r.left-sr.left+fx*scale)+'px';el.style.top=(r.top-sr.top+fy*scale)+'px';stage.appendChild(el);requestAnimationFrame(()=>requestAnimationFrame(()=>{el.style.left=(r.left-sr.left+tx*scale)+'px';el.style.top=(r.top-sr.top+ty*scale)+'px'}));setTimeout(()=>{el.remove();resolve()},620)})}
 const chip = c => '<span class="chip" style="background:'+COLORS[c]+'"></span>';
 const pname = c => chip(c)+c.charAt(0).toUpperCase()+c.slice(1);
 
@@ -312,10 +324,9 @@ document.getElementById('startbtn').onclick = ()=>{
   players = seats.map((c,i)=>({color:c, ai:seatSel[i]==='Computer', done:false,name:nostalgia.names[i]||c}));
   BFGame.start('Dice Race', players.map((p,i)=>p.ai ? p.color+' CPU' : p.color.charAt(0).toUpperCase()+p.color.slice(1)));
   tokens = {}; players.forEach(p=>tokens[p.color]=[-1,-1,-1,-1]);
-  turn = 0; dice = null; sixes = 0; gameOver = false; awaitingMove = false;
+  turn = 0; dice = null; sixes = 0; gameOver = false; awaitingMove = false; turnReady=false;
   document.getElementById('setup').classList.add('hidden');
-  document.getElementById('dicebtn').disabled = false;
-  log(pname(players[0].color)+' to roll'); playerCards(); render(); showPassPhone(); maybeAI();
+  playerCards(); render(); announceTurn(120);
 };
 document.getElementById('newgame').onclick = openSetup;
 document.getElementById('howto').onclick = ()=>alert('Dice Race rules:\n\n- Roll a 6 to move a token out of base.\n- Tap the dice, then tap a highlighted token to move it.\n- Land on an opponent to send them back to base.\n- Star squares are safe.\n- Rolling a 6, capturing, or bringing a token home gives another roll.\n- Three 6s in a row ends your turn.\n- First player to bring all 4 tokens home wins.');
@@ -337,27 +348,32 @@ function getMovable(color, d){
 function absIdx(color,p){ return (START[color]+p)%52; }
 
 function doRoll(forced){
-  if(gameOver || awaitingMove) return;
+  if(gameOver || awaitingMove || transitionBusy || !turnReady) return;
   if(window.NET&&NET.mode==='v2'){NET.roll();return;}
   dice = forced || (1+Math.floor(Math.random()*6));
   finishDiceShake(dice);
+  turnReady=false;setTransition(true);
   const color = players[turn].color;
+  flashMessage('Rolled <b>'+dice+'</b>','result',COLORS[color]);
   if(dice===6) sixes++; else sixes=0;
-  if(sixes===3){ log(pname(color)+' rolled three 6s - turn over'); sixes=0; render(); setTimeout(nextTurn,900); return; }
+  if(sixes===3){ log(pname(color)+' rolled three 6s - turn over'); sixes=0; render(); setTimeout(nextTurn,1050); return; }
   const mv = getMovable(color,dice);
   if(mv.length===0){
     log(pname(color)+' rolled '+dice+' - no moves');
-    render(); setTimeout(nextTurn,900); return;
+    render(); setTimeout(nextTurn,1050); return;
   }
   movableCache = mv;
-  if(mv.length===1){ moveToken(color, mv[0]); return; }
-  awaitingMove = true;
-  log(pname(color)+' rolled '+dice+' - tap a glowing token');
-  render();
+  if(mv.length===1){ setTimeout(()=>moveToken(color, mv[0]),900); return; }
+  setTimeout(()=>{awaitingMove=true;setTransition(false);log(pname(color)+' rolled '+dice+' - tap a glowing token');render();updateDiceControl()},900);
 }
 
 function moveToken(color, idx){
-  awaitingMove = false;
+  if(gameOver||transitionBusy&&awaitingMove)return;
+  awaitingMove=false;setTransition(true);
+  const from=tokens[color][idx],to=from===-1?(nostalgia.quickEntry?Math.min(dice,6):0):from+dice;
+  animateTokenGhost(color,from,to,idx).then(()=>completeTokenMove(color,idx));
+}
+function completeTokenMove(color, idx){
   let p = tokens[color][idx];
   let extra = false, msg = '';
   if(p===-1){ tokens[color][idx]=nostalgia.quickEntry?Math.min(dice,6):0; msg = pname(color)+' enters the board'; tokenSound(); }
@@ -376,38 +392,32 @@ function moveToken(color, idx){
       }
     }
   }
-  // win check
   if(tokens[color].every(q=>q===56)){
     players[turn].done = true;
     if(players.filter(x=>!x.done).length<=1){
-      gameOver = true;
-      document.getElementById('dicebtn').disabled = true;
+      gameOver = true;setTransition(false);updateDiceControl();
       log('&#127942; '+pname(color)+' WINS! Tap New Game to play again');
       BFGame.win((players[turn].name||color.charAt(0).toUpperCase()+color.slice(1))); showMoment('Ghar ki champion!');setTimeout(()=>showMemoryCard(players[turn].name||color),1250);
       render(); return;
     }
     msg = pname(color)+' finishes!';
   }
-  if(dice===6 || extra){ log(msg + ' - roll again'); sixes = dice===6 ? sixes : 0; render(); if(!gameOver) maybeAI(); }
-  else { log(msg); render(); setTimeout(nextTurn,700); }
+  render();
+  if(dice===6 || extra){log(msg+' - roll again');sixes=dice===6?sixes:0;setTimeout(()=>{turnReady=true;setTransition(false);updateDiceControl();maybeAI()},420)}
+  else {log(msg);setTimeout(nextTurn,420)}
 }
-
 function nextTurn(){
   if(gameOver) return;
-  sixes = 0;
-  do { turn = (turn+1)%players.length; } while(players[turn].done);
-  dice = null;
-  setDiceFace(1);
-  log(pname(players[turn].color)+' to roll');
-  playerCards(); render(); showPassPhone(); maybeAI();
+  sixes=0;do{turn=(turn+1)%players.length}while(players[turn].done);
+  dice=null;setDiceFace(1);render();playerCards();announceTurn(100);
 }
 function maybeAI(){
   const pl = players[turn];
-  if(gameOver || !pl || !pl.ai) return;
+  if(gameOver || !pl || !pl.ai || !turnReady || transitionBusy) return;
   setTimeout(()=>{
-    if(gameOver||awaitingMove) return;
+    if(gameOver||awaitingMove||transitionBusy||!turnReady) return;
     const d = 1+Math.floor(Math.random()*6);
-    dice = d; beginDiceShake(); finishDiceShake(d);
+    dice=d;beginDiceShake();finishDiceShake(d);turnReady=false;setTransition(true);flashMessage('Rolled <b>'+d+'</b>','result',COLORS[pl.color]);
     if(d===6) sixes++; else sixes=0;
     if(sixes===3){ log(pname(pl.color)+' (AI) rolled three 6s - turn over'); sixes=0; render(); setTimeout(nextTurn,800); return; }
     const mv = getMovable(pl.color,d);
@@ -427,14 +437,14 @@ function maybeAI(){
       if(score>best){ best=score; pick=i; }
     }
     log(pname(pl.color)+' (AI) rolled '+d);
-    setTimeout(()=>moveToken(pl.color,pick), 350);
+    setTimeout(()=>moveToken(pl.color,pick),900);
   }, 650);
 }
 
-document.getElementById('dicebtn').onclick = ()=>{ if(!gameOver && !awaitingMove && players.length && !players[turn].ai){beginDiceShake();doRoll();} };
+document.getElementById('dicebtn').onclick=()=>{if(!gameOver&&!awaitingMove&&!transitionBusy&&turnReady&&players.length&&!players[turn].ai&&isLocalTurn()){beginDiceShake();doRoll()}};
 
 cv.addEventListener('click', e=>{
-  if(!awaitingMove) return;
+  if(!awaitingMove||transitionBusy) return;
   const r = cv.getBoundingClientRect();
   const x = (e.clientX-r.left)*600/r.width, y = (e.clientY-r.top)*600/r.height;
   const color = players[turn].color;
@@ -541,12 +551,12 @@ function reactionOverAvatar(seat,emoji){
 }
 function showMoment(text){const old=document.querySelector('.moment');if(old)old.remove();const el=document.createElement('div');el.className='moment '+(nostalgia.theme==='neon'?'':'victory-warm');el.innerHTML='<b>'+escapeHtml(text)+'</b>';document.body.appendChild(el);setTimeout(()=>el.remove(),1400)}
 function detectMoment(prev,g,event){if(!prev)return;if(g.over&&!prev.over){showMoment('Victory!');return}if(event!=='moved')return;let prevBase=0,nextBase=0,prevHome=0,nextHome=0;for(const p of g.players){(prev.tokens[p.color]||[]).forEach(x=>{if(x===-1)prevBase++;if(x===56)prevHome++});(g.tokens[p.color]||[]).forEach(x=>{if(x===-1)nextBase++;if(x===56)nextHome++})}if(nextHome>prevHome)showMoment('Home!');else if(nextBase>prevBase)showMoment('Captured!')}
-function applyRoom(room,event){
+function applyRoomNow(room,event){
  lobbyNames=room.seats.map(x=>x.name);refreshLobby(room);
  if(!room.state){playerCards(room.seats);return;}
  const g=room.state;detectMoment(lastOnlineSnapshot,g,event);players=g.players.map(p=>({color:p.color,ai:false,done:p.done,name:p.name}));tokens=g.tokens;turn=g.turn;dice=g.dice;awaitingMove=g.awaiting;movableCache=g.awaiting?getMovable(players[turn].color,g.dice):[];gameOver=g.over;sixes=g.sixes;
  if(dice)finishDiceShake(dice);else if(!diceAwaitingResult)setDiceFace(1);
- document.getElementById('dicebtn').disabled=gameOver||NET.seat!==turn||awaitingMove;
+ turnReady=!gameOver&&!awaitingMove;setTransition(false);updateDiceControl();
  document.getElementById('setup').classList.add('hidden');document.getElementById('online').classList.add('hidden');document.getElementById('onlinetools').classList.remove('hidden');
  document.getElementById('rematch').classList.toggle('hidden',!gameOver);document.getElementById('rematchstatus').textContent=gameOver&&room.rematchVotes?room.rematchVotes+'/'+room.seats.length+' ready':'';
  log(onlineLog(g,event));playerCards(room.seats);render();lastOnlineSnapshot=JSON.parse(JSON.stringify(g));
@@ -568,6 +578,21 @@ document.getElementById('startonline').onclick=()=>{if(lobbyNames.length<2){docu
 document.querySelectorAll('[data-react]').forEach(b=>b.onclick=()=>NET.react(b.dataset.react));document.getElementById('mutereactions').onclick=()=>{NET.mute(!NET.muted);document.getElementById('mutereactions').textContent=!NET.muted?'Mute reactions':'Unmute reactions'};document.getElementById('rematch').onclick=()=>NET.rematch();
 if(location.hash==='#online')document.getElementById('online').classList.remove('hidden');
 
+
+function applyRoom(room,event){
+ const snapshot=JSON.parse(JSON.stringify(room));
+ onlinePresentation=onlinePresentation.then(async()=>{
+  const prev=lastOnlineSnapshot&&JSON.parse(JSON.stringify(lastOnlineSnapshot));
+  if(snapshot.state&&event==='rolled'){setTransition(true);finishDiceShake(snapshot.state.dice);await flashMessage('Rolled <b>'+snapshot.state.dice+'</b>','result',COLORS[snapshot.state.players[snapshot.state.turn].color])}
+  if(snapshot.state&&event==='moved'&&prev){
+   const movedColor=prev.players[prev.turn]?.color;let slot=-1;
+   if(movedColor)slot=(snapshot.state.tokens[movedColor]||[]).findIndex((v,i)=>v!==(prev.tokens[movedColor]||[])[i]);
+   if(slot>=0){players=prev.players.map(p=>({color:p.color,ai:false,done:p.done,name:p.name}));tokens=JSON.parse(JSON.stringify(prev.tokens));turn=prev.turn;dice=prev.dice;gameOver=prev.over;awaitingMove=false;render();setTransition(true);await animateTokenGhost(movedColor,prev.tokens[movedColor][slot],snapshot.state.tokens[movedColor][slot],slot)}
+  }
+  applyRoomNow(snapshot,event);
+  if(snapshot.state&&event==='moved'&&!snapshot.state.over&&snapshot.state.turn!==prev?.turn)await announceTurn(80);
+ }).catch(()=>{applyRoomNow(snapshot,event)});
+}
 // ---------- Demo mode (#demo): scripted quick game for screenshots ----------
 if(location.hash==='#demo'){
   nostalgia.passPhone=false;document.getElementById('passphone').checked=false;
