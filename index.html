@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>BoardFusion - Dice Race & Marble Loop</title>
+<style>
+  :root { --bg:#0f172a; --card:#1e293b; --text:#e2e8f0; --accent:#38bdf8; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; font-family:-apple-system,'Segoe UI',Roboto,sans-serif; background:linear-gradient(160deg,#0f172a,#1e293b 60%,#0f172a); color:var(--text); min-height:100vh; display:flex; flex-direction:column; align-items:center; }
+  header { width:100%; max-width:640px; padding:14px 16px 6px; text-align:center; }
+  header h1 { margin:0; font-size:22px; letter-spacing:.5px; }
+  header h1 span { color:var(--accent); }
+  .tabs { display:flex; gap:8px; justify-content:center; padding:8px 16px; width:100%; max-width:640px; }
+  .tab { flex:1; padding:10px; border:none; border-radius:10px; background:#334155; color:var(--text); font-size:15px; font-weight:600; cursor:pointer; }
+  .tab.active { background:var(--accent); color:#0f172a; }
+  #statusbar { display:flex; align-items:center; justify-content:center; gap:10px; padding:6px 16px; min-height:30px; font-size:15px; width:100%; max-width:640px; text-align:center; flex-wrap:wrap; }
+  .chip { display:inline-block; width:14px; height:14px; border-radius:50%; border:2px solid #fff; vertical-align:-2px; margin-right:4px; }
+  #boardwrap { width:min(92vw,560px); padding:8px 0; }
+  canvas { width:100%; display:block; border-radius:14px; box-shadow:0 10px 30px rgba(0,0,0,.45); touch-action:manipulation; }
+  #controls { display:flex; gap:12px; align-items:center; justify-content:center; padding:12px 16px 24px; width:100%; max-width:640px; }
+  #dicebtn { width:74px; height:74px; border-radius:16px; border:3px solid #475569; background:#f8fafc; cursor:pointer; box-shadow:0 6px 16px rgba(0,0,0,.4); display:grid; grid-template:repeat(3,1fr)/repeat(3,1fr); padding:12px; gap:2px; }
+  .pip { width:100%; aspect-ratio:1; border-radius:50%; background:transparent; place-self:center; }
+  .pip.on { background:#0f172a; }
+  #dicebtn:disabled { opacity:.45; cursor:default; }
+  #newgame, #howto { padding:14px 18px; border-radius:12px; border:none; background:#334155; color:var(--text); font-size:15px; font-weight:600; cursor:pointer; }
+  .overlay { position:fixed; inset:0; background:rgba(2,6,23,.82); display:flex; align-items:center; justify-content:center; padding:20px; z-index:10; }
+  .panel { background:var(--card); border-radius:18px; padding:24px; width:100%; max-width:420px; max-height:88vh; overflow-y:auto; }
+  .panel h2 { margin:0 0 4px; font-size:20px; }
+  .panel p.sub { margin:0 0 16px; color:#94a3b8; font-size:14px; }
+  .row { display:flex; gap:8px; margin-bottom:14px; }
+  .row button { flex:1; padding:12px; border-radius:10px; border:2px solid #475569; background:#0f172a; color:var(--text); font-size:16px; font-weight:700; cursor:pointer; }
+  .row button.sel { border-color:var(--accent); background:#164e63; }
+  .pset { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; gap:8px; }
+  .pset .name { font-weight:700; font-size:15px; }
+  .pset select { padding:8px 10px; border-radius:8px; background:#0f172a; color:var(--text); border:1px solid #475569; font-size:14px; }
+  #startbtn { width:100%; padding:14px; border:none; border-radius:12px; background:var(--accent); color:#0f172a; font-size:17px; font-weight:800; cursor:pointer; margin-top:6px; }
+  .note { font-size:12.5px; color:#94a3b8; margin-top:12px; line-height:1.5; }
+  #marble { width:min(92vw,560px); background:var(--card); border-radius:16px; padding:20px; margin:10px 0 30px; line-height:1.55; font-size:14.5px; }
+  #marble h3 { margin-top:0; }
+  #marble .badge { display:inline-block; background:#b45309; color:#fff; font-size:11px; font-weight:800; padding:3px 9px; border-radius:20px; letter-spacing:.6px; vertical-align:2px; margin-left:6px; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<header><h1>Board<span>Fusion</span></h1></header>
+<div class="tabs">
+  <button class="tab active" id="tab-ludo">Dice Race</button>
+  <button class="tab" id="tab-jackaroo">Marble Loop</button>
+</div>
+
+<div id="ludo-view">
+  <div id="statusbar">Set up a game to begin</div>
+  <div id="boardwrap"><canvas id="board" width="600" height="600"></canvas></div>
+  <div id="controls">
+    <button id="dicebtn" disabled></button>
+    <button id="newgame">New Game</button>
+    <button id="onlinebtn">Online</button>
+    <button id="howto">Rules</button>
+  </div>
+</div>
+
+<div id="marble" class="hidden">
+  <h3>Marble Loop <span class="badge">IN DEVELOPMENT</span></h3>
+  <p>Our original Jackaroo-style mode: 2 or 4 players race marbles from their base around the loop and into their safe zone using a hand of playing cards instead of dice.</p>
+  <ul>
+    <li><b>Cards as moves:</b> number cards move that many spaces; A starts a marble or moves 1; K starts a marble or moves 13; Q moves 12; J swaps one of your marbles with any marble on the loop; 4 moves backward; 7 splits between two marbles.</li>
+    <li><b>Teams:</b> 4-player games are 2v2 - partners sit opposite and win together.</li>
+    <li><b>Captures:</b> landing on an opponent's marble sends it back to base.</li>
+  </ul>
+  <p>The rules engine, card deck, and board renderer are designed in the README. The playable build ships in the next milestone; Dice Race is fully playable today.</p>
+</div>
+
+<div class="overlay" id="setup">
+  <div class="panel">
+    <h2>Dice Race</h2>
+    <p class="sub">Original Ludo-style race. Pass-and-play on one device; online rooms arrive with the server milestone.</p>
+    <div class="row" id="pcount">
+      <button data-n="2">2P</button><button data-n="3">3P</button><button data-n="4" class="sel">4P</button>
+    </div>
+    <div id="plist"></div>
+    <button id="startbtn">Start Game</button>
+    <p class="note">Roll a 6 to leave base. Landing on an opponent sends them home; star squares are safe. A 6, a capture, or getting a token home earns another roll - but three 6s in a row ends your turn. First to bring all 4 tokens home wins.</p>
+  </div>
+</div>
+
+<div class="overlay hidden" id="online">
+  <div class="panel">
+    <h2>Online Room</h2>
+    <p class="sub">Real-time rooms over the BoardFusion relay. One player hosts; friends join with the room code.</p>
+    <div id="connform">
+      <input id="wsurl" placeholder="ws://localhost:8787/ws" style="width:100%;padding:10px;border-radius:8px;border:1px solid #475569;background:#0f172a;color:#e2e8f0;margin-bottom:10px">
+      <input id="pname_in" placeholder="Your name" style="width:100%;padding:10px;border-radius:8px;border:1px solid #475569;background:#0f172a;color:#e2e8f0;margin-bottom:10px">
+      <div class="row">
+        <button id="createroom">Create room</button>
+        <button id="joinroom">Join</button>
+      </div>
+      <input id="roomcode" placeholder="Room code (to join)" style="width:100%;padding:10px;border-radius:8px;border:1px solid #475569;background:#0f172a;color:#e2e8f0;text-transform:uppercase">
+    </div>
+    <div id="lobbyview" class="hidden">
+      <p id="roomline" style="font-weight:700"></p>
+      <ul id="lobbylist" style="line-height:1.8"></ul>
+      <button id="startonline" class="hidden" style="width:100%;padding:14px;border:none;border-radius:12px;background:#38bdf8;color:#0f172a;font-size:16px;font-weight:800;cursor:pointer">Start online game</button>
+      <p class="note" id="waitnote">Waiting for the host to start...</p>
+    </div>
+    <p class="note" id="onlineerr" style="color:#fca5a5"></p>
+    <p class="note">Rooms need the relay running: <b>npm install && npm start</b> in the project folder, then use that address here. Host-authoritative: the host device runs the game and everyone else sends moves to it.</p>
+    <button class="ctl" id="closeonline" style="margin-top:10px;width:100%">Close</button>
+  </div>
+</div>
+<script src="net.js"></script>
+<script>
+'use strict';
+// ---------- Board geometry (15x15 grid, clockwise main track) ----------
+const TRACK = [[6,1],[6,2],[6,3],[6,4],[6,5],[5,6],[4,6],[3,6],[2,6],[1,6],[0,6],[0,7],[0,8],[1,8],[2,8],[3,8],[4,8],[5,8],[6,9],[6,10],[6,11],[6,12],[6,13],[6,14],[7,14],[8,14],[8,13],[8,12],[8,11],[8,10],[8,9],[9,8],[10,8],[11,8],[12,8],[13,8],[14,8],[14,7],[14,6],[13,6],[12,6],[11,6],[10,6],[9,6],[8,5],[8,4],[8,3],[8,2],[8,1],[8,0],[7,0],[6,0]];
+const START = {red:0, green:13, yellow:26, blue:39};
+const HOMECOL = {
+  red:    [[7,1],[7,2],[7,3],[7,4],[7,5],[7,6]],
+  green:  [[1,7],[2,7],[3,7],[4,7],[5,7],[6,7]],
+  yellow: [[7,13],[7,12],[7,11],[7,10],[7,9],[7,8]],
+  blue:   [[13,7],[12,7],[11,7],[10,7],[9,7],[8,7]]
+};
+const YARD = {
+  red:    [[1.5,1.5],[1.5,3.5],[3.5,1.5],[3.5,3.5]],
+  green:  [[1.5,10.5],[1.5,12.5],[3.5,10.5],[3.5,12.5]],
+  yellow: [[10.5,10.5],[10.5,12.5],[12.5,10.5],[12.5,12.5]],
+  blue:   [[10.5,1.5],[10.5,3.5],[12.5,1.5],[12.5,3.5]]
+};
+const SAFE = new Set([0,8,13,21,26,34,39,47]);
+const COLORS = {red:'#e53935', green:'#43a047', yellow:'#f9a825', blue:'#1e88e5'};
+const ORDER = ['red','green','yellow','blue'];
+const PIPS = {1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
+function setDiceFace(n){
+  const b = document.getElementById('dicebtn'); b.innerHTML='';
+  for(let i=0;i<9;i++){ const s=document.createElement('span'); s.className='pip'+(PIPS[n].includes(i)?' on':''); b.appendChild(s); }
+}
+
+// ---------- Game state ----------
+const cv = document.getElementById('board');
+const ctx = cv.getContext('2d');
+const S = 600/15;
+let players = [];            // [{color, ai, done}]
+let tokens = {};             // color -> [p..]  -1 yard, 0..50 track, 51..56 home lane (56 = home)
+let turn = 0, dice = null, awaitingMove = false, gameOver = true, sixes = 0;
+let movableCache = [];
+let log = m => { document.getElementById('statusbar').innerHTML = m; };
+const chip = c => '<span class="chip" style="background:'+COLORS[c]+'"></span>';
+const pname = c => chip(c)+c.charAt(0).toUpperCase()+c.slice(1);
+
+// ---------- Setup UI ----------
+let pcount = 4;
+const seatSel = [];
+function renderPlayerList(){
+  const el = document.getElementById('plist'); el.innerHTML='';
+  const seats = pcount===2 ? ['red','yellow'] : pcount===3 ? ['red','green','yellow'] : ORDER;
+  seats.forEach((c,i)=>{
+    if(seatSel[i]===undefined) seatSel[i]='Human';
+    const row = document.createElement('div'); row.className='pset';
+    row.innerHTML = '<span class="name">'+pname(c)+'</span>';
+    const sel = document.createElement('select');
+    ['Human','Computer'].forEach(o=>{ const op=document.createElement('option'); op.textContent=o; if(seatSel[i]===o) op.selected=true; sel.appendChild(op); });
+    sel.onchange = ()=>{ seatSel[i]=sel.value; };
+    row.appendChild(sel); el.appendChild(row);
+  });
+}
+document.getElementById('pcount').addEventListener('click', e=>{
+  const b = e.target.closest('button'); if(!b) return;
+  document.querySelectorAll('#pcount button').forEach(x=>x.classList.remove('sel'));
+  b.classList.add('sel'); pcount = +b.dataset.n; renderPlayerList();
+});
+renderPlayerList();
+
+document.getElementById('startbtn').onclick = ()=>{
+  const seats = pcount===2 ? ['red','yellow'] : pcount===3 ? ['red','green','yellow'] : ORDER;
+  players = seats.map((c,i)=>({color:c, ai:seatSel[i]==='Computer', done:false}));
+  tokens = {}; players.forEach(p=>tokens[p.color]=[-1,-1,-1,-1]);
+  turn = 0; dice = null; sixes = 0; gameOver = false; awaitingMove = false;
+  document.getElementById('setup').classList.add('hidden');
+  document.getElementById('dicebtn').disabled = false;
+  log(pname(players[0].color)+' to roll'); render(); maybeAI();
+};
+document.getElementById('newgame').onclick = ()=>document.getElementById('setup').classList.remove('hidden');
+document.getElementById('howto').onclick = ()=>alert('Dice Race rules:\n\n- Roll a 6 to move a token out of base.\n- Tap the dice, then tap a highlighted token to move it.\n- Land on an opponent to send them back to base.\n- Star squares are safe.\n- Rolling a 6, capturing, or bringing a token home gives another roll.\n- Three 6s in a row ends your turn.\n- First player to bring all 4 tokens home wins.');
+
+// ---------- Tabs ----------
+const tabL = document.getElementById('tab-ludo'), tabJ = document.getElementById('tab-jackaroo');
+tabL.onclick = ()=>{ tabL.classList.add('active'); tabJ.classList.remove('active'); document.getElementById('ludo-view').classList.remove('hidden'); document.getElementById('marble').classList.add('hidden'); };
+tabJ.onclick = ()=>{ location.href='marble.html'; };
+
+// ---------- Rules engine ----------
+function getMovable(color, d){
+  const res = [];
+  tokens[color].forEach((p,i)=>{
+    if(p===-1){ if(d===6) res.push(i); }
+    else if(p<56 && p+d<=56) res.push(i);
+  });
+  return res;
+}
+function absIdx(color,p){ return (START[color]+p)%52; }
+
+function doRoll(forced){
+  if(gameOver || awaitingMove) return;
+  if(window.NET && NET.mode==='client'){ NET.intent({kind:'roll'}); return; }
+  dice = forced || (1+Math.floor(Math.random()*6));
+  setDiceFace(dice);
+  const color = players[turn].color;
+  if(dice===6) sixes++; else sixes=0;
+  if(sixes===3){ log(pname(color)+' rolled three 6s - turn over'); sixes=0; render(); setTimeout(nextTurn,900); return; }
+  const mv = getMovable(color,dice);
+  if(mv.length===0){
+    log(pname(color)+' rolled '+dice+' - no moves');
+    render(); setTimeout(nextTurn,900); return;
+  }
+  movableCache = mv;
+  if(mv.length===1){ moveToken(color, mv[0]); return; }
+  awaitingMove = true;
+  log(pname(color)+' rolled '+dice+' - tap a glowing token');
+  render();
+}
+
+function moveToken(color, idx){
+  awaitingMove = false;
+  let p = tokens[color][idx];
+  let extra = false, msg = '';
+  if(p===-1){ tokens[color][idx]=0; msg = pname(color)+' enters the board'; }
+  else {
+    p += dice; tokens[color][idx]=p;
+    if(p===56){ extra = true; msg = pname(color)+' gets a token home!'; }
+    else if(p<=50){
+      const a = absIdx(color,p);
+      if(!SAFE.has(a)){
+        let cap = 0;
+        for(const pl of players){
+          if(pl.color===color) continue;
+          tokens[pl.color].forEach((q,qi)=>{ if(q>=0 && q<=50 && absIdx(pl.color,q)===a){ tokens[pl.color][qi]=-1; cap++; } });
+        }
+        if(cap){ extra = true; msg = pname(color)+' captures '+cap+' token'+(cap>1?'s':'')+'!'; }
+      }
+    }
+  }
+  // win check
+  if(tokens[color].every(q=>q===56)){
+    players[turn].done = true;
+    if(players.filter(x=>!x.done).length<=1){
+      gameOver = true;
+      document.getElementById('dicebtn').disabled = true;
+      log('&#127942; '+pname(color)+' WINS! Tap New Game to play again');
+      render(); return;
+    }
+    msg = pname(color)+' finishes!';
+  }
+  if(dice===6 || extra){ log(msg + ' - roll again'); sixes = dice===6 ? sixes : 0; render(); if(!gameOver) maybeAI(); }
+  else { log(msg); render(); setTimeout(nextTurn,700); }
+}
+
+function nextTurn(){
+  if(gameOver) return;
+  sixes = 0;
+  do { turn = (turn+1)%players.length; } while(players[turn].done);
+  dice = null;
+  setDiceFace(1);
+  log(pname(players[turn].color)+' to roll');
+  render(); maybeAI();
+}
+function maybeAI(){
+  const pl = players[turn];
+  if(gameOver || !pl || !pl.ai) return;
+  setTimeout(()=>{
+    if(gameOver||awaitingMove) return;
+    const d = 1+Math.floor(Math.random()*6);
+    dice = d; setDiceFace(d);
+    if(d===6) sixes++; else sixes=0;
+    if(sixes===3){ log(pname(pl.color)+' (AI) rolled three 6s - turn over'); sixes=0; render(); setTimeout(nextTurn,800); return; }
+    const mv = getMovable(pl.color,d);
+    if(mv.length===0){ log(pname(pl.color)+' (AI) rolled '+d+' - no moves'); render(); setTimeout(nextTurn,800); return; }
+    // simple AI: prefer capture > leave base > furthest token
+    let pick = mv[0], best = -1e9;
+    for(const i of mv){
+      const p = tokens[pl.color][i]; let score = Math.random();
+      const np = p===-1?0:p+d;
+      if(p===-1) score += 40;
+      if(np===56) score += 60;
+      else if(np<=50 && !SAFE.has(absIdx(pl.color,np))){
+        for(const o of players){ if(o.color===pl.color) continue;
+          tokens[o.color].forEach(q=>{ if(q>=0&&q<=50&&absIdx(o.color,q)===absIdx(pl.color,np)) score += 80; }); }
+      }
+      score += (p===-1?0:p)*0.5;
+      if(score>best){ best=score; pick=i; }
+    }
+    log(pname(pl.color)+' (AI) rolled '+d);
+    setTimeout(()=>moveToken(pl.color,pick), 350);
+  }, 650);
+}
+
+document.getElementById('dicebtn').onclick = ()=>{ if(!gameOver && !awaitingMove && players.length && !players[turn].ai) doRoll(); };
+
+cv.addEventListener('click', e=>{
+  if(!awaitingMove) return;
+  const r = cv.getBoundingClientRect();
+  const x = (e.clientX-r.left)*600/r.width, y = (e.clientY-r.top)*600/r.height;
+  const color = players[turn].color;
+  for(const i of movableCache){
+    const [px,py] = tokenXY(color, tokens[color][i], i);
+    if(Math.hypot(px-x,py-y) < S*0.8){
+      if(window.NET && NET.mode==='client'){ NET.intent({kind:'pick', idx:i}); }
+      else { moveToken(color,i); }
+      return;
+    }
+  }
+});
+
+// ---------- Rendering ----------
+function cellXY(rc){ return [ (rc[1]+0.5)*S, (rc[0]+0.5)*S ]; }
+function tokenXY(color,p,slot){
+  if(p===-1){ const y=YARD[color][slot]; return [(y[1]+0.5)*S,(y[0]+0.5)*S]; }
+  if(p<=50) return cellXY(TRACK[absIdx(color,p)]);
+  return cellXY(HOMECOL[color][p-51]);
+}
+function drawCell(rc, fill, star){
+  const [x,y] = [rc[1]*S, rc[0]*S];
+  ctx.fillStyle = fill; ctx.fillRect(x,y,S,S);
+  ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1; ctx.strokeRect(x,y,S,S);
+  if(star){ ctx.fillStyle='#64748b'; ctx.font = (S*0.5)+'px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('\u2605', x+S/2, y+S/2+2); }
+}
+function render(){
+  ctx.fillStyle = '#e2e8f0'; ctx.fillRect(0,0,600,600);
+  // yards
+  for(const c of ORDER){
+    const top = (c==='red'||c==='green')?0:9, left = (c==='red'||c==='blue')?0:9;
+    ctx.fillStyle = COLORS[c];
+    ctx.fillRect(left*S, top*S, 6*S, 6*S);
+    ctx.fillStyle = '#f8fafc';
+    roundRect(left*S+S*0.7, top*S+S*0.7, 4.6*S, 4.6*S, 12); ctx.fill();
+    for(const sp of YARD[c]){
+      ctx.beginPath(); ctx.arc((sp[1]+0.5)*S,(sp[0]+0.5)*S,S*0.42,0,7);
+      ctx.fillStyle='#e2e8f0'; ctx.fill(); ctx.strokeStyle=COLORS[c]; ctx.lineWidth=2; ctx.stroke();
+    }
+  }
+  // track
+  TRACK.forEach((rc,i)=>{
+    let fill = '#ffffff';
+    for(const c of ORDER) if(START[c]===i) fill = COLORS[c];
+    drawCell(rc, fill, SAFE.has(i) && fill==='#ffffff');
+  });
+  // home lanes
+  for(const c of ORDER) HOMECOL[c].forEach((rc,i)=>{ if(i<5) drawCell(rc, COLORS[c]); });
+  // center triangles
+  const cx=300, cy=300;
+  const tri = {red:[[7*S,6*S],[7*S,9*S]], green:[[6*S,7*S],[9*S,7*S]], yellow:[[8*S,6*S],[8*S,9*S]], blue:[[6*S,7*S],[9*S,7*S]]};
+  ctx.beginPath(); ctx.moveTo(6*S,6*S); ctx.lineTo(cx,cy); ctx.lineTo(6*S,9*S); ctx.closePath(); ctx.fillStyle=COLORS.green; ctx.fill();
+  ctx.beginPath(); ctx.moveTo(9*S,6*S); ctx.lineTo(cx,cy); ctx.lineTo(9*S,9*S); ctx.closePath(); ctx.fillStyle=COLORS.yellow; ctx.fill();
+  ctx.beginPath(); ctx.moveTo(6*S,6*S); ctx.lineTo(cx,cy); ctx.lineTo(9*S,6*S); ctx.closePath(); ctx.fillStyle=COLORS.red; ctx.fill();
+  ctx.beginPath(); ctx.moveTo(6*S,9*S); ctx.lineTo(cx,cy); ctx.lineTo(9*S,9*S); ctx.closePath(); ctx.fillStyle=COLORS.blue; ctx.fill();
+  ctx.strokeStyle='#475569'; ctx.strokeRect(6*S,6*S,3*S,3*S);
+  // tokens
+  const byCell = {};
+  for(const pl of players){
+    tokens[pl.color].forEach((p,slot)=>{
+      const [x,y] = tokenXY(pl.color,p,slot);
+      const key = p===-1 ? pl.color+slot : Math.round(x)+','+Math.round(y);
+      (byCell[key]=byCell[key]||[]).push({x,y,color:pl.color,slot});
+    });
+  }
+  for(const key in byCell){
+    const g = byCell[key];
+    g.forEach((t,gi)=>{
+      let dx=0, dy=0, r=S*0.36;
+      if(g.length>1){ r=S*0.26; dx=(gi%2?1:-1)*S*0.2; dy=(gi>1?1:-1)*S*0.2; }
+      const glow = awaitingMove && players[turn].color===t.color && movableCache.includes(t.slot);
+      ctx.beginPath(); ctx.arc(t.x+dx,t.y+dy,r,0,7);
+      ctx.fillStyle = COLORS[t.color]; ctx.fill();
+      ctx.lineWidth = glow?4:2; ctx.strokeStyle = glow?'#0ea5e9':'#ffffff'; ctx.stroke();
+      if(glow){ ctx.beginPath(); ctx.arc(t.x+dx,t.y+dy,r+5,0,7); ctx.strokeStyle='rgba(14,165,233,.5)'; ctx.lineWidth=3; ctx.stroke(); }
+    });
+  }
+  if(window.NET && NET.mode==='host') syncState();
+}
+function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+setDiceFace(1);
+render();
+
+
+// ---------- Online rooms ----------
+let lobbyNames = [];
+function seatColors(n){ return n===2 ? ['red','yellow'] : n===3 ? ['red','green','yellow'] : ORDER; }
+function syncState(){
+  NET.hostSend({kind:'sync', tokens, turn, dice, awaitingMove, movableCache, gameOver,
+    status:document.getElementById('statusbar').innerHTML,
+    players:players.map(p=>({color:p.color, ai:p.ai, name:p.name||null}))});
+}
+function applySync(m){
+  players = m.players.map(p=>({color:p.color, ai:p.ai, done:false, name:p.name}));
+  tokens = m.tokens; turn = m.turn; dice = m.dice;
+  awaitingMove = m.awaitingMove; movableCache = m.movableCache || [];
+  gameOver = m.gameOver;
+  if(dice) setDiceFace(dice);
+  document.getElementById('dicebtn').disabled = gameOver;
+  document.getElementById('setup').classList.add('hidden');
+  document.getElementById('online').classList.add('hidden');
+  log(m.status);
+  render();
+}
+function refreshLobby(){
+  document.getElementById('connform').classList.add('hidden');
+  document.getElementById('lobbyview').classList.remove('hidden');
+  document.getElementById('roomline').textContent = 'Room ' + NET.room + ' (' + lobbyNames.length + '/4)';
+  document.getElementById('lobbylist').innerHTML = lobbyNames.map((n,i)=>'<li>'+pname(seatColors(4)[i])+' '+n+(i===0?' (host)':'')+'</li>').join('');
+  const isHost = NET.mode==='host';
+  document.getElementById('startonline').classList.toggle('hidden', !isHost);
+  document.getElementById('waitnote').classList.toggle('hidden', isHost);
+}
+function defaultWsUrl(){
+  if(location.protocol==='http:'||location.protocol==='https:')
+    return (location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws';
+  return 'ws://localhost:8787/ws';
+}
+document.getElementById('onlinebtn').onclick = ()=>{
+  const inp = document.getElementById('wsurl');
+  if(!inp.value) inp.value = defaultWsUrl();
+  document.getElementById('online').classList.remove('hidden');
+};
+document.getElementById('closeonline').onclick = ()=>document.getElementById('online').classList.add('hidden');
+async function ensureConn(){
+  const url = document.getElementById('wsurl').value.trim() || defaultWsUrl();
+  document.getElementById('onlineerr').textContent = '';
+  try { await NET.connect(url); } catch(e){ document.getElementById('onlineerr').textContent = 'Could not reach the relay at ' + url; throw e; }
+}
+document.getElementById('createroom').onclick = async ()=>{
+  const n = document.getElementById('pname_in').value.trim() || 'Host';
+  try { await ensureConn(); NET.create(n); } catch(e){}
+};
+document.getElementById('joinroom').onclick = async ()=>{
+  const n = document.getElementById('pname_in').value.trim() || 'Guest';
+  const c = document.getElementById('roomcode').value.trim();
+  if(!c){ document.getElementById('onlineerr').textContent = 'Enter the room code'; return; }
+  try { await ensureConn(); NET.join(c, n); } catch(e){}
+};
+NET.on('created', ()=>{ lobbyNames = [NET.name]; refreshLobby(); });
+NET.on('joined', ()=>{ refreshLobby(); });
+NET.on('lobby', m=>{ lobbyNames = m.players; if(NET.mode==='client' && !lobbyNames.includes(NET.name)) lobbyNames.push(NET.name); refreshLobby(); });
+NET.on('error', m=>{ document.getElementById('onlineerr').textContent = m.reason || 'Room error'; });
+NET.on('closed', ()=>{ document.getElementById('onlineerr').textContent = 'Connection closed'; });
+NET.on('state', m=>{ if(m.kind==='sync') applySync(m); });
+NET.on('start', ()=>{ document.getElementById('online').classList.add('hidden'); document.getElementById('setup').classList.add('hidden'); });
+NET.on('intent', m=>{
+  if(NET.mode!=='host' || gameOver) return;
+  const seatIdx = lobbyNames.indexOf(m.from);
+  if(seatIdx<0 || seatIdx>=players.length) return;
+  const seatColor = players[seatIdx].color;
+  if(players[turn].color !== seatColor) return;
+  if(m.kind==='roll' && !awaitingMove && dice===null) doRoll();
+  else if(m.kind==='pick' && awaitingMove && movableCache.includes(m.idx)) moveToken(seatColor, m.idx);
+});
+document.getElementById('startonline').onclick = ()=>{
+  if(lobbyNames.length<2){ document.getElementById('onlineerr').textContent='Need at least 2 players'; return; }
+  const cols = seatColors(lobbyNames.length);
+  players = lobbyNames.map((n,i)=>({color:cols[i], ai:false, done:false, name:n}));
+  tokens = {}; players.forEach(p=>tokens[p.color]=[-1,-1,-1,-1]);
+  turn = 0; dice = null; sixes = 0; gameOver = false; awaitingMove = false;
+  document.getElementById('dicebtn').disabled = false;
+  document.getElementById('online').classList.add('hidden');
+  log(pname(players[0].color)+' ('+lobbyNames[0]+') to roll');
+  NET.hostStart({});
+  render();
+};
+if(location.hash==='#online'){ document.getElementById('online').classList.remove('hidden'); }
+
+// ---------- Demo mode (#demo): scripted quick game for screenshots ----------
+if(location.hash==='#demo'){
+  document.getElementById('startbtn').click();
+  const advance = ()=>{ do{ turn=(turn+1)%players.length; }while(players[turn].done); };
+  const demoStep = d=>{
+    const color = players[turn].color;
+    if(d===6) sixes++; else sixes=0;
+    if(sixes===3){ sixes=0; advance(); return; }
+    const mv = getMovable(color,d);
+    if(!mv.length){ advance(); return; }
+    const i = mv[0];
+    let p = tokens[color][i], extra = (d===6);
+    if(p===-1){ tokens[color][i]=0; }
+    else{
+      p += d; tokens[color][i]=p;
+      if(p===56) extra = true;
+      else if(p<=50){
+        const a = absIdx(color,p);
+        if(!SAFE.has(a)){
+          for(const pl of players){ if(pl.color===color) continue;
+            tokens[pl.color].forEach((q,qi)=>{ if(q>=0&&q<=50&&absIdx(pl.color,q)===a){ tokens[pl.color][qi]=-1; extra=true; } }); }
+        }
+      }
+    }
+    if(!extra) advance();
+  };
+  [6,4,3,5,6,2,4,1,6,3,2,4,6,5,3,1].forEach(d=>{ if(!gameOver) demoStep(d); });
+  dice = null; sixes = 0; awaitingMove = false;
+  log(pname(players[turn].color)+' to roll');
+  render();
+}
+</script>
+
+</body>
+</html>
