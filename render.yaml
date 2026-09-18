@@ -1,0 +1,10 @@
+# Deploy on Render: New > Blueprint, point at this repo. Free tier works; the
+# service sleeps when idle (first join after idle takes ~30s to wake).
+services:
+  - type: web
+    name: boardfusion
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /healthz
