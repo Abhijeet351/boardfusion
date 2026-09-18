@@ -39,6 +39,7 @@
   #marble { width:min(92vw,560px); background:var(--card); border-radius:16px; padding:20px; margin:10px 0 30px; line-height:1.55; font-size:14.5px; }
   #marble h3 { margin-top:0; }
   #marble .badge { display:inline-block; background:#b45309; color:#fff; font-size:11px; font-weight:800; padding:3px 9px; border-radius:20px; letter-spacing:.6px; vertical-align:2px; margin-left:6px; }
+  .match-choice{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}.match-card{padding:14px!important;text-align:left}.match-card strong{display:block;font-size:15px}.match-card small{display:block;margin-top:4px;opacity:.75}.queuebox{padding:16px;border:1px solid rgba(84,232,255,.32);border-radius:14px;background:rgba(84,232,255,.08);text-align:center}.queuepulse{width:12px;height:12px;border-radius:50%;display:inline-block;background:#54e8ff;box-shadow:0 0 0 0 rgba(84,232,255,.6);animation:queuepulse 1.4s infinite}@keyframes queuepulse{70%{box-shadow:0 0 0 10px rgba(84,232,255,0)}}
   .online-tools {width:min(92vw,560px);display:flex;align-items:center;justify-content:center;gap:7px;flex-wrap:wrap;margin:-10px 0 16px}
   .online-tools button{border:1px solid #475569;background:#1e293b;color:#fff;border-radius:9px;padding:8px 11px;cursor:pointer}.online-tools .rematch{background:#38bdf8;color:#082f49;font-weight:800}
   #reactionpop{position:fixed;z-index:20;font-size:52px;pointer-events:none;animation:pop 1.6s ease-out forwards}@keyframes pop{0%{opacity:0;transform:scale(.5)}20%{opacity:1;transform:scale(1.2)}100%{opacity:0;transform:translateY(-90px)}}
@@ -56,7 +57,7 @@
   .online-tools{margin:8px auto 18px;padding:8px;width:min(94vw,590px);border:1px solid var(--line);border-radius:17px;background:rgba(8,13,31,.78);backdrop-filter:blur(15px)}.online-tools:before{content:'QUICK REACT';font-size:9px;letter-spacing:1.4px;color:#7f8caf;font-weight:900;margin:0 3px}.online-tools button{min-width:38px;border-color:var(--line);background:#151d3b;border-radius:11px;font-size:18px;transition:.15s}.online-tools button[data-react]:hover{transform:translateY(-3px) scale(1.08);background:#24305b}.online-tools #mutereactions{font-size:11px}.online-tools .rematch{font-size:12px;background:linear-gradient(135deg,#54e8ff,#7e8cff)}
   .overlay{background:rgba(2,4,14,.84);backdrop-filter:blur(14px)}.panel{background:linear-gradient(155deg,#192349,#0e1531);border:1px solid rgba(255,255,255,.14);border-radius:24px;box-shadow:0 30px 90px #000;padding:25px}.panel h2{font-size:24px}.panel p.sub{line-height:1.5}.row button,#startbtn,#startonline{border-radius:13px!important}.row button.sel,#startbtn,#startonline{background:linear-gradient(135deg,#54e8ff,#8f7cff)!important;color:#071125!important;box-shadow:0 9px 25px rgba(84,232,255,.18)}input,select{border-color:rgba(255,255,255,.14)!important;background:rgba(4,8,24,.7)!important}.room-badge{display:inline-block;padding:5px 10px;border-radius:9px;background:rgba(84,232,255,.12);border:1px solid rgba(84,232,255,.35);color:#8eeeff;letter-spacing:2px}
   .moment{position:fixed;inset:0;z-index:40;display:grid;place-items:center;pointer-events:none;background:radial-gradient(circle,rgba(91,74,220,.26),transparent 48%);animation:momentFade 1.35s ease forwards}.moment b{font-size:clamp(28px,9vw,60px);font-weight:950;text-transform:uppercase;letter-spacing:-2px;background:linear-gradient(120deg,#fff,#60e8ff,#ffd166);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 8px 18px #000);animation:momentIn 1.35s cubic-bezier(.16,.8,.2,1) forwards}@keyframes momentIn{0%{opacity:0;transform:scale(.3) rotate(-7deg)}20%,65%{opacity:1;transform:scale(1.04) rotate(0)}100%{opacity:0;transform:scale(1.3)}}@keyframes momentFade{70%{opacity:1}100%{opacity:0}}
-  @media(max-width:540px){#playerrail{grid-template-columns:repeat(2,1fr)}.player-card{padding:6px}.player-avatar{width:31px;height:31px}.arena{width:96vw;border-radius:21px;padding:6px}#boardwrap{width:min(91vw,520px)}header h1{font-size:22px}.online-tools:before{width:100%;text-align:center}.panel{padding:21px 18px}}
+  @media(max-width:540px){.match-choice{grid-template-columns:1fr}.match-card{text-align:center}#playerrail{grid-template-columns:repeat(2,1fr)}.player-card{padding:6px}.player-avatar{width:31px;height:31px}.arena{width:96vw;border-radius:21px;padding:6px}#boardwrap{width:min(91vw,520px)}header h1{font-size:22px}.online-tools:before{width:100%;text-align:center}.panel{padding:21px 18px}}
   @media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important}}
 
   /* Players live beside their matching home corners instead of in a detached rail. */
@@ -200,17 +201,21 @@
 
 <div class="overlay hidden" id="online">
   <div class="panel">
-    <h2>Online Room</h2>
-    <p class="sub">Server-verified rooms with secure seat resume. Share the room code with friends.</p>
+    <h2>Play Online</h2>
+    <p class="sub">Find another player now, or use a private room code with friends. Every online match is verified by the server.</p>
     <div id="connform">
       <input id="wsurl" placeholder="ws://localhost:8787/ws" style="width:100%;padding:10px;border-radius:8px;border:1px solid #475569;background:#0f172a;color:#e2e8f0;margin-bottom:10px">
-      <input id="pname_in" placeholder="Your name" style="width:100%;padding:10px;border-radius:8px;border:1px solid #475569;background:#0f172a;color:#e2e8f0;margin-bottom:10px">
-      <div class="row">
-        <button id="createroom">Create room</button>
-        <button id="joinroom">Join</button>
+      <input id="pname_in" placeholder="Your name" maxlength="24" style="width:100%;padding:10px;border-radius:8px;border:1px solid #475569;background:#0f172a;color:#e2e8f0;margin-bottom:10px">
+      <div class="match-choice">
+        <button id="findmatch" class="match-card"><strong>Find online player</strong><small>Join the public 1 vs 1 queue</small></button>
+        <button id="showprivate" class="match-card"><strong>Private room</strong><small>Create or join with a code</small></button>
       </div>
-      <input id="roomcode" placeholder="Room code (to join)" style="width:100%;padding:10px;border-radius:8px;border:1px solid #475569;background:#0f172a;color:#e2e8f0;text-transform:uppercase">
+      <div id="privateform" class="hidden">
+        <div class="row"><button id="createroom">Create room</button><button id="joinroom">Join</button></div>
+        <input id="roomcode" placeholder="Room code (to join)" maxlength="4" style="width:100%;padding:10px;border-radius:8px;border:1px solid #475569;background:#0f172a;color:#e2e8f0;text-transform:uppercase">
+      </div>
     </div>
+    <div id="queueview" class="queuebox hidden" role="status" aria-live="polite"><p><span class="queuepulse"></span> <strong>Looking for an online player...</strong></p><p class="note" id="queuenote">You are in the queue. The match starts automatically when a real player joins.</p><button id="cancelmatch" class="ctl">Cancel search</button></div>
     <div id="lobbyview" class="hidden">
       <p id="roomline" style="font-weight:700"></p>
       <ul id="lobbylist" style="line-height:1.8"></ul>
@@ -419,14 +424,10 @@ function completeTokenMove(color, idx){
     }
   }
   if(tokens[color].every(q=>q===56)){
-    players[turn].done = true;
-    if(players.filter(x=>!x.done).length<=1){
-      gameOver = true;setTransition(false);updateDiceControl();
-      log('&#127942; '+tname(color)+' WINS! Tap New Game to play again');
-      BFGame.win(((players[turn].name||color)+(players[turn].ai?' CPU':''))); showMoment('Ghar ki champion!');setTimeout(()=>showMemoryCard(players[turn].name||color),1250);
-      render(); return;
-    }
-    msg = tname(color)+' finishes!';
+    players[turn].done=true;gameOver=true;setTransition(false);updateDiceControl();
+    log('&#127942; '+tname(color)+' WINS! Tap New Game to play again');
+    BFGame.win(((players[turn].name||color)+(players[turn].ai?' CPU':'')));showMoment('Ghar ki champion!');setTimeout(()=>showMemoryCard(players[turn].name||color),1250);
+    render();return;
   }
   render();
   if(dice===6 || extra){log(msg+' - roll again');sixes=dice===6?sixes:0;setTimeout(()=>{turnReady=true;setTransition(false);updateDiceControl();maybeAI()},420)}
@@ -596,13 +597,17 @@ function refreshLobby(room){if(!NET.room)return;document.getElementById('connfor
 function escapeHtml(v){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function defaultWsUrl(){if(location.protocol==='http:'||location.protocol==='https:')return(location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws';return'ws://localhost:8787/ws';}
 document.getElementById('onlinebtn').onclick=()=>{const inp=document.getElementById('wsurl');if(!inp.value)inp.value=defaultWsUrl();document.getElementById('online').classList.remove('hidden');};
-document.getElementById('closeonline').onclick=()=>document.getElementById('online').classList.add('hidden');
+document.getElementById('closeonline').onclick=()=>{if(NET.queueing)NET.cancelMatch();document.getElementById('online').classList.add('hidden');};
 async function ensureConn(){const url=document.getElementById('wsurl').value.trim()||defaultWsUrl();document.getElementById('onlineerr').textContent='';try{await NET.connect(url)}catch(e){document.getElementById('onlineerr').textContent='Could not reach the relay at '+url;throw e}}
 document.getElementById('createroom').onclick=async()=>{const n=document.getElementById('pname_in').value.trim()||'Host';try{await ensureConn();NET.create(n)}catch(_){}};
+document.getElementById('showprivate').onclick=()=>document.getElementById('privateform').classList.toggle('hidden');
+document.getElementById('findmatch').onclick=async()=>{const n=document.getElementById('pname_in').value.trim()||'Player';try{await ensureConn();NET.match(n)}catch(_){}};
+document.getElementById('cancelmatch').onclick=()=>NET.cancelMatch();
 document.getElementById('joinroom').onclick=async()=>{const n=document.getElementById('pname_in').value.trim()||'Guest',c=document.getElementById('roomcode').value.trim();if(!c){document.getElementById('onlineerr').textContent='Enter the room code';return}try{await ensureConn();NET.join(c,n)}catch(_){}};
-NET.on('v2-welcome',m=>{applyRoom(m.room);});NET.on('v2-resumed',m=>applyRoom(m.room,'resumed'));NET.on('resumed',()=>document.getElementById('onlineerr').textContent='Seat resumed');NET.on('v2-lobby',m=>applyRoom(m.room));NET.on('v2-state',m=>applyRoom(m.room,m.event));NET.on('v2-rematch',m=>{applyRoom(m.room,m.ready?'rematch':'vote');});
+NET.on('v2-welcome',m=>{applyRoom(m.room);});NET.on('v2-match-queued',m=>{document.getElementById('connform').classList.add('hidden');document.getElementById('queueview').classList.remove('hidden');document.getElementById('queuenote').textContent=m.position>1?'Pairing now...':'You are first in line. The match starts automatically when another real player joins.';});NET.on('v2-match-found',m=>{document.getElementById('queueview').classList.add('hidden');applyRoom(m.room,'start');});NET.on('v2-match-cancelled',m=>{document.getElementById('queueview').classList.add('hidden');document.getElementById('connform').classList.remove('hidden');document.getElementById('onlineerr').textContent=m.reason||'Search cancelled';});NET.on('v2-match-timeout',m=>{document.getElementById('queueview').classList.add('hidden');document.getElementById('connform').classList.remove('hidden');document.getElementById('onlineerr').textContent=m.reason;});NET.on('v2-resumed',m=>applyRoom(m.room,'resumed'));NET.on('resumed',()=>document.getElementById('onlineerr').textContent='Seat resumed');NET.on('v2-lobby',m=>applyRoom(m.room));NET.on('v2-state',m=>applyRoom(m.room,m.event));NET.on('v2-rematch',m=>{applyRoom(m.room,m.ready?'rematch':'vote');});
 NET.on('v2-reaction',m=>{if(NET.muted)return;reactionOverAvatar(m.seat,m.emoji)});
-NET.on('error',m=>{document.getElementById('onlineerr').textContent=m.reason||'Room error';if(NET.room)log('&#9888; '+escapeHtml(m.reason||'Room error'));});NET.on('closed',()=>{if(NET.room)log('Connection lost - resuming seat...')});
+NET.on('v2-displaced',m=>{document.getElementById('queueview').classList.add('hidden');document.getElementById('connform').classList.remove('hidden');document.getElementById('onlineerr').textContent=m.reason||'Continued in another tab';});
+NET.on('error',m=>{document.getElementById('onlineerr').textContent=m.reason||'Room error';if(NET.room)log('&#9888; '+escapeHtml(m.reason||'Room error'));});NET.on('closed',m=>{if(NET.room)log('Connection lost - resuming seat...');else if(m.wasQueueing){document.getElementById('queueview').classList.add('hidden');document.getElementById('connform').classList.remove('hidden');document.getElementById('onlineerr').textContent='Connection lost. Start the search again.';}});
 document.getElementById('startonline').onclick=()=>{if(lobbyNames.length<2){document.getElementById('onlineerr').textContent='Need at least 2 players';return}BFGame.start('Dice Race Online',lobbyNames);NET.start();};
 document.querySelectorAll('[data-react]').forEach(b=>b.onclick=()=>NET.react(b.dataset.react));document.getElementById('mutereactions').onclick=()=>{NET.mute(!NET.muted);document.getElementById('mutereactions').textContent=!NET.muted?'Mute reactions':'Unmute reactions'};document.getElementById('rematch').onclick=()=>NET.rematch();
 if(location.hash==='#online')document.getElementById('online').classList.remove('hidden');
