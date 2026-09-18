@@ -1,0 +1,53 @@
+// BoardFusion progression. Stats are stored only in this browser until cloud accounts are connected.
+window.BFGame = (function(){
+  const KEY='boardfusion_progress_v1';
+  const fresh=()=>({profile:{name:'Player',createdAt:Date.now()},xp:0,wins:0,matches:0,captures:0,home:0,streak:0,bestStreak:0,lastWinDay:'',achievements:[],leaders:{},history:[]});
+  let s; try{s=Object.assign(fresh(),JSON.parse(localStorage.getItem(KEY)||'{}'));}catch(_){s=fresh();}
+  s.profile=s.profile||{name:'Player',createdAt:Date.now()}; s.leaders=s.leaders||{}; s.achievements=s.achievements||[]; s.history=s.history||[];
+  let active=null;
+  const levels=[0,100,260,500,850,1300,1900,2700,3700,5000];
+  const achievements=[
+    ['first_win','First Crown','Win your first match','🏆',()=>s.wins>=1],
+    ['three_wins','Hat Trick','Win 3 matches','🎩',()=>s.wins>=3],
+    ['hunter','Token Hunter','Make 10 captures','⚔️',()=>s.captures>=10],
+    ['finisher','Home Run','Bring 10 pieces home','🏠',()=>s.home>=10],
+    ['streaker','On Fire','Reach a 3-win streak','🔥',()=>s.bestStreak>=3],
+    ['veteran','Game Night','Finish 10 matches','🎲',()=>s.matches>=10]
+  ];
+  const level=()=>{let n=1;for(let i=1;i<levels.length;i++)if(s.xp>=levels[i])n=i+1;return n;};
+  const save=()=>{localStorage.setItem(KEY,JSON.stringify(s));renderBar();};
+  function toast(title,text,icon='✨'){
+    const t=document.createElement('div');t.className='bf-toast';t.innerHTML=`<b>${icon} ${esc(title)}</b><span>${esc(text)}</span>`;document.body.appendChild(t);setTimeout(()=>t.classList.add('show'),30);setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),300)},3200);
+  }
+  function addXP(n,why){s.xp+=n;toast(`+${n} XP`,why,'⭐');checkAchievements();save();}
+  function checkAchievements(){for(const [id,name,desc,icon,test] of achievements){if(!s.achievements.includes(id)&&test()){s.achievements.push(id);s.xp+=75;setTimeout(()=>toast('Achievement unlocked',`${icon} ${name} · +75 XP`,'🏅'),350);}}}
+  function esc(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
+  function inject(){
+    const st=document.createElement('style');st.textContent=`
+    .bf-profilebar{width:min(92vw,560px);display:flex;align-items:center;gap:9px;background:rgba(30,41,59,.88);border:1px solid #334155;border-radius:14px;padding:9px 11px;margin:7px auto 1px;box-shadow:0 8px 24px rgba(0,0,0,.2)}
+    .bf-avatar{width:35px;height:35px;border-radius:11px;background:linear-gradient(135deg,#38bdf8,#8b5cf6);display:grid;place-items:center;font-weight:900;color:#fff}.bf-pmeta{min-width:0;flex:1}.bf-pname{font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bf-level{font-size:11px;color:#94a3b8;margin-top:2px}.bf-xptrack{height:5px;border-radius:9px;background:#0f172a;margin-top:5px;overflow:hidden}.bf-xpfill{height:100%;background:linear-gradient(90deg,#38bdf8,#a78bfa)}
+    .bf-open{border:0;border-radius:10px;background:#f59e0b;color:#1c1917;padding:9px 11px;font-weight:900;cursor:pointer;white-space:nowrap}.bf-overlay{position:fixed;inset:0;z-index:40;background:rgba(2,6,23,.9);display:flex;justify-content:center;align-items:center;padding:16px}.bf-modal{width:100%;max-width:500px;max-height:91vh;overflow:auto;background:#111827;border:1px solid #334155;border-radius:22px;padding:20px;color:#e2e8f0;box-shadow:0 24px 80px rgba(0,0,0,.55)}
+    .bf-mhead{display:flex;justify-content:space-between;align-items:center}.bf-mhead h2{margin:0}.bf-close{border:0;background:#334155;color:#fff;border-radius:9px;width:35px;height:35px;font-size:20px;cursor:pointer}.bf-hero{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0}.bf-stat{background:#1e293b;border-radius:13px;padding:13px}.bf-stat b{font-size:22px;display:block}.bf-stat span{font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.6px}
+    .bf-tabs{display:flex;gap:7px;margin:14px 0 10px}.bf-tab{flex:1;border:0;border-radius:9px;background:#1e293b;color:#cbd5e1;padding:10px;font-weight:800;cursor:pointer}.bf-tab.on{background:#38bdf8;color:#082f49}.bf-pane{display:none}.bf-pane.on{display:block}.bf-rank{display:grid;grid-template-columns:35px 1fr auto;gap:8px;align-items:center;background:#1e293b;border-radius:11px;padding:10px;margin:7px 0}.bf-rank .place{font-weight:900;color:#fbbf24;text-align:center}.bf-rank small{display:block;color:#94a3b8;margin-top:2px}.bf-ach{display:flex;gap:11px;align-items:center;background:#1e293b;border-radius:11px;padding:11px;margin:7px 0;opacity:.45}.bf-ach.got{opacity:1;border:1px solid #a78bfa}.bf-ach i{font-style:normal;font-size:26px}.bf-note{font-size:12px;line-height:1.5;color:#94a3b8;background:#0f172a;border-radius:10px;padding:10px;margin-top:12px}.bf-edit{display:flex;gap:8px}.bf-edit input{flex:1;min-width:0;background:#0f172a;border:1px solid #475569;color:#fff;border-radius:9px;padding:10px}.bf-edit button{border:0;background:#38bdf8;color:#082f49;border-radius:9px;padding:0 13px;font-weight:900}.bf-toast{position:fixed;z-index:80;right:14px;top:14px;background:#111827;border:1px solid #475569;border-radius:13px;padding:12px 16px;box-shadow:0 14px 40px rgba(0,0,0,.5);transform:translateY(-130%);transition:.28s;display:flex;flex-direction:column;max-width:290px}.bf-toast.show{transform:translateY(0)}.bf-toast span{color:#94a3b8;font-size:12px;margin-top:3px}
+    @media(max-width:430px){.bf-open{font-size:12px;padding:9px}.bf-profilebar{margin-top:4px}.bf-modal{padding:16px}.bf-hero{grid-template-columns:repeat(2,1fr)}}`;
+    document.head.appendChild(st);
+    const bar=document.createElement('div');bar.className='bf-profilebar';bar.id='bfbar';
+    const tabs=document.querySelector('.tabs');tabs.parentNode.insertBefore(bar,tabs.nextSibling);bar.onclick=e=>{if(e.target.closest('.bf-open'))open();};renderBar();
+  }
+  function renderBar(){const b=document.getElementById('bfbar');if(!b)return;const l=level(),base=levels[l-1]||0,next=levels[l]||levels.at(-1),pct=Math.min(100,Math.max(0,(s.xp-base)/(next-base)*100));b.innerHTML=`<div class="bf-avatar">${esc((s.profile.name||'P')[0].toUpperCase())}</div><div class="bf-pmeta"><div class="bf-pname">${esc(s.profile.name||'Player')}</div><div class="bf-level">Level ${l} · ${s.xp} XP</div><div class="bf-xptrack"><div class="bf-xpfill" style="width:${pct}%"></div></div></div><button class="bf-open">🏆 Rankings</button>`;}
+  function leaderboard(){const rows=Object.values(s.leaders).sort((a,b)=>b.score-a.score||b.wins-a.wins);if(!rows.length)return '<p class="bf-note">Finish a match to put players on this device leaderboard.</p>';return rows.slice(0,20).map((r,i)=>`<div class="bf-rank"><div class="place">${['🥇','🥈','🥉'][i]||i+1}</div><div><b>${esc(r.name)}</b><small>${r.wins} win${r.wins===1?'':'s'} · ${r.games} match${r.games===1?'':'es'}</small></div><b>${r.score}</b></div>`).join('');}
+  function open(){
+    const l=level();const o=document.createElement('div');o.className='bf-overlay';o.innerHTML=`<div class="bf-modal"><div class="bf-mhead"><div><h2>Player Hub</h2><small style="color:#94a3b8">Level ${l} explorer</small></div><button class="bf-close">×</button></div><div class="bf-hero"><div class="bf-stat"><b>${s.xp}</b><span>Total XP</span></div><div class="bf-stat"><b>${s.wins}</b><span>Wins</span></div><div class="bf-stat"><b>${s.bestStreak}🔥</b><span>Best streak</span></div><div class="bf-stat"><b>${s.matches}</b><span>Matches</span></div></div><div class="bf-edit"><input maxlength="18" value="${esc(s.profile.name)}" aria-label="Player name"><button>Save name</button></div><div class="bf-tabs"><button class="bf-tab on" data-p="rank">Leaderboard</button><button class="bf-tab" data-p="ach">Badges</button></div><section class="bf-pane on" data-pane="rank"><div class="bf-note"><b style="color:#e2e8f0">This device</b><br>Rankings are based on finished matches in this browser. Cloud accounts and cross-device rankings need a connected identity service.</div>${leaderboard()}</section><section class="bf-pane" data-pane="ach">${achievements.map(([id,n,d,ic])=>`<div class="bf-ach ${s.achievements.includes(id)?'got':''}"><i>${ic}</i><div><b>${esc(n)}</b><small style="display:block;color:#94a3b8">${esc(d)}</small></div></div>`).join('')}</section></div>`;document.body.appendChild(o);
+    o.querySelector('.bf-close').onclick=()=>o.remove();o.onclick=e=>{if(e.target===o)o.remove();};o.querySelector('.bf-edit button').onclick=()=>{const v=o.querySelector('input').value.trim();if(v){s.profile.name=v;save();toast('Profile updated',v,'👤');o.remove();}};o.querySelectorAll('.bf-tab').forEach(b=>b.onclick=()=>{o.querySelectorAll('.bf-tab,.bf-pane').forEach(x=>x.classList.remove('on'));b.classList.add('on');o.querySelector(`[data-pane="${b.dataset.p}"]`).classList.add('on');});
+  }
+  function start(game,names){active={game,names:(names||[]).map(String),captures:0,home:0};}
+  function capture(n=1){if(!active)return;active.captures+=n;s.captures+=n;addXP(15*n,n>1?'Multi-capture':'Capture');}
+  function home(){if(!active)return;active.home++;s.home++;addXP(20,'Piece reached home');}
+  function win(winner){if(!active)active={game:'Game',names:[winner],captures:0,home:0};s.matches++;s.wins++;
+    const day=new Date().toISOString().slice(0,10),prev=new Date(Date.now()-86400000).toISOString().slice(0,10);s.streak=s.lastWinDay===day?s.streak:(s.lastWinDay===prev?s.streak+1:1);s.lastWinDay=day;s.bestStreak=Math.max(s.bestStreak,s.streak);
+    const names=active.names.length?active.names:[winner];for(const n of names){const won=String(n)===String(winner);const r=s.leaders[n]||{name:n,wins:0,games:0,score:0};r.games++;if(won){r.wins++;r.score+=100;}else r.score+=20;s.leaders[n]=r;}
+    s.history.unshift({game:active.game,winner,at:Date.now()});s.history=s.history.slice(0,20);active=null;addXP(100,'Match victory');setTimeout(open,700);
+  }
+  document.readyState==='loading'?document.addEventListener('DOMContentLoaded',inject):inject();
+  return {start,capture,home,win,open};
+})();
