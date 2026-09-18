@@ -3,7 +3,7 @@ const http=require('http'),fs=require('fs'),path=require('path');
 const {WebSocketServer}=require('ws');
 const DiceEngine=require('./dice-engine'),Rooms=require('./room-v2');
 const PORT=process.env.PORT||8787;
-const MIME={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.json':'application/json','.png':'image/png','.md':'text/markdown; charset=utf-8'};
+const MIME={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.json':'application/json','.png':'image/png','.md':'text/markdown; charset=utf-8','.opus':'audio/ogg'};
 const SUPABASE_URL='https://shvwglpfpuogwadvspvz.supabase.co',SUPABASE_PUBLIC='sb_publishable_gNJCTsEc246ssSYoG5LqzQ_Hb5bnTnl';
 const scoredEvents=new Map(),verifiedResults=new Map();
 const json=(res,code,data)=>{res.writeHead(code,{'Content-Type':'application/json'});res.end(JSON.stringify(data));};
@@ -23,7 +23,7 @@ async function scoreResult(req,res){
  pr=await fetch(SUPABASE_URL+'/rest/v1/profiles?id=eq.'+encodeURIComponent(userId),{method:'PATCH',headers:{...h,Prefer:'return=minimal'},body:JSON.stringify(next)});if(!pr.ok)return json(res,502,{error:'score write failed'});
  verified.scored=true;const out={ok:true,xp:next.xp,wins:next.wins,matches:next.matches};scoredEvents.set(input.event_id,out);setTimeout(()=>{scoredEvents.delete(input.event_id);verifiedResults.delete(input.event_id)},86400000);return json(res,200,out);
 }
-const PUBLIC=new Set(['/','/verify-v2.html','/index.html','/marble.html','/net.js','/gamify.js','/cloud.js','/landing.html','/maintenance.html','/icon.png']);
+const PUBLIC=new Set(['/','/verify-v2.html','/index.html','/marble.html','/net.js','/gamify.js','/cloud.js','/landing.html','/maintenance.html','/icon.png','/assets/happy-vibes.opus']);
 const legacyRooms=new Map(),v2=new Rooms({ttl:120000});
 const server=http.createServer((req,res)=>{const url=req.url.split('?')[0];if(url==='/api/result'&&req.method==='POST')return void scoreResult(req,res).catch(()=>json(res,500,{error:'score error'}));if(url==='/healthz')return json(res,200,{ok:true,rooms:legacyRooms.size+v2.rooms.size});const maintenance=process.env.MAINTENANCE_MODE==='on';if(maintenance&&['/','/index.html','/marble.html','/landing.html'].includes(url)){res.writeHead(503,{'Content-Type':'text/html; charset=utf-8','Retry-After':'900'});return fs.createReadStream(path.join(__dirname,'maintenance.html')).pipe(res);}const file=(url==='/'||url==='/verify-v2.html')?'/index.html':url;if(!PUBLIC.has(file)){res.writeHead(404);return res.end('not found');}fs.readFile(path.join(__dirname,file),(err,data)=>{if(err){res.writeHead(404);return res.end('not found');}res.writeHead(200,{'Content-Type':MIME[path.extname(file)]||'application/octet-stream'});res.end(data);});});
 const wss=new WebSocketServer({server,path:'/ws'}),code=()=>Math.random().toString(36).slice(2,6).toUpperCase();
