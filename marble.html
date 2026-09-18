@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>BoardFusion - Marble Loop</title>
+<style>
+  :root { --bg:#0f172a; --card:#1e293b; --text:#e2e8f0; --accent:#38bdf8; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; font-family:-apple-system,'Segoe UI',Roboto,sans-serif; background:linear-gradient(160deg,#0f172a,#1e293b 60%,#0f172a); color:var(--text); min-height:100vh; display:flex; flex-direction:column; align-items:center; }
+  header { width:100%; max-width:640px; padding:14px 16px 6px; text-align:center; }
+  header h1 { margin:0; font-size:22px; letter-spacing:.5px; }
+  header h1 span { color:var(--accent); }
+  .tabs { display:flex; gap:8px; justify-content:center; padding:8px 16px; width:100%; max-width:640px; }
+  .tab { flex:1; padding:10px; border:none; border-radius:10px; background:#334155; color:var(--text); font-size:15px; font-weight:600; cursor:pointer; }
+  .tab.active { background:var(--accent); color:#0f172a; }
+  #statusbar { display:flex; align-items:center; justify-content:center; gap:10px; padding:6px 16px; min-height:30px; font-size:15px; width:100%; max-width:640px; text-align:center; flex-wrap:wrap; }
+  .chip { display:inline-block; width:14px; height:14px; border-radius:50%; border:2px solid #fff; vertical-align:-2px; margin-right:4px; }
+  #boardwrap { width:min(92vw,560px); padding:8px 0; }
+  canvas { width:100%; display:block; border-radius:14px; box-shadow:0 10px 30px rgba(0,0,0,.45); touch-action:manipulation; }
+  #hand { display:flex; gap:8px; justify-content:center; padding:8px 16px; flex-wrap:wrap; width:100%; max-width:640px; min-height:64px; }
+  .cardbtn { width:52px; height:66px; border-radius:8px; border:2px solid #475569; background:#f8fafc; color:#0f172a; font-size:18px; font-weight:800; cursor:pointer; }
+  .cardbtn.red { color:#dc2626; }
+  .cardbtn.sel { border-color:var(--accent); box-shadow:0 0 0 3px rgba(56,189,248,.4); }
+  #controls { display:flex; gap:10px; align-items:center; justify-content:center; padding:8px 16px 26px; width:100%; max-width:640px; flex-wrap:wrap; }
+  .ctl { padding:12px 16px; border-radius:12px; border:none; background:#334155; color:var(--text); font-size:14px; font-weight:600; cursor:pointer; }
+  .ctl:disabled { opacity:.45; }
+  #steps { display:none; gap:6px; }
+  #steps button { width:40px; height:40px; border-radius:8px; border:2px solid #475569; background:#0f172a; color:var(--text); font-weight:700; cursor:pointer; }
+  .overlay { position:fixed; inset:0; background:rgba(2,6,23,.82); display:flex; align-items:center; justify-content:center; padding:20px; z-index:10; }
+  .panel { background:var(--card); border-radius:18px; padding:24px; width:100%; max-width:420px; max-height:88vh; overflow-y:auto; }
+  .panel h2 { margin:0 0 4px; font-size:20px; }
+  .panel p.sub { margin:0 0 16px; color:#94a3b8; font-size:14px; }
+  .row { display:flex; gap:8px; margin-bottom:14px; }
+  .row button { flex:1; padding:12px; border-radius:10px; border:2px solid #475569; background:#0f172a; color:var(--text); font-size:16px; font-weight:700; cursor:pointer; }
+  .row button.sel { border-color:var(--accent); background:#164e63; }
+  .pset { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; gap:8px; }
+  .pset select { padding:8px 10px; border-radius:8px; background:#0f172a; color:var(--text); border:1px solid #475569; font-size:14px; }
+  #startbtn { width:100%; padding:14px; border:none; border-radius:12px; background:var(--accent); color:#0f172a; font-size:17px; font-weight:800; cursor:pointer; margin-top:6px; }
+  .note { font-size:12.5px; color:#94a3b8; margin-top:12px; line-height:1.5; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<header><h1>Board<span>Fusion</span></h1></header>
+<div class="tabs">
+  <button class="tab" id="tab-ludo">Dice Race</button>
+  <button class="tab active">Marble Loop</button>
+</div>
+<div id="statusbar">Set up a game to begin</div>
+<div id="boardwrap"><canvas id="board" width="600" height="600"></canvas></div>
+<div id="hand"></div>
+<div id="controls">
+  <span id="steps"></span>
+  <button class="ctl hidden" id="skipbtn">Skip rest</button>
+  <button class="ctl hidden" id="discardbtn">No moves - discard</button>
+  <button class="ctl" id="newgame">New Game</button>
+  <button class="ctl" id="howto">Rules</button>
+</div>
+
+<div class="overlay" id="setup">
+  <div class="panel">
+    <h2>Marble Loop</h2>
+    <p class="sub">Original Jackaroo-style card race. 2 players duel; 4 players form 2v2 teams (partners sit opposite). Pass-and-play on one device.</p>
+    <div class="row" id="pcount">
+      <button data-n="2">2P duel</button><button data-n="4" class="sel">4P teams</button>
+    </div>
+    <div id="plist"></div>
+    <button id="startbtn">Start Game</button>
+    <p class="note">Play one card per turn. A or K brings a marble out of base. Number cards move that far; 4 moves backward; 7 can split between two marbles; J swaps one of your marbles with any marble on the loop; Q moves 12. Land on an opponent to send them home. Bring all your marbles into your colored lane to win (exact count needed for the last step). No legal move? Discard a card and pass.</p>
+  </div>
+</div>
+
+<script>
+'use strict';
+// ---------- Board geometry ----------
+// 40-cell clockwise loop on a 15x15 grid, inner lanes to the center.
+const RING = [];
+for(let c=7;c>=2;c--) RING.push([12,c]);
+for(let r=11;r>=2;r--) RING.push([r,2]);
+for(let c=3;c<=12;c++) RING.push([2,c]);
+for(let r=3;r<=12;r++) RING.push([r,12]);
+for(let c=11;c>=8;c--) RING.push([12,c]);
+const START = {red:0, blue:10, yellow:20, green:30};
+const LANE = {
+  red:[[11,7],[10,7],[9,7],[8,7]],
+  blue:[[7,3],[7,4],[7,5],[7,6]],
+  yellow:[[3,7],[4,7],[5,7],[6,7]],
+  green:[[7,11],[7,10],[7,9],[7,8]]
+};
+const BASE = {
+  red:[[13,1],[13,2],[14,1],[14,2]],
+  blue:[[0,1],[0,2],[1,1],[1,2]],
+  yellow:[[0,12],[0,13],[1,12],[1,13]],
+  green:[[13,12],[13,13],[14,12],[14,13]]
+};
+const COLORS = {red:'#e53935', green:'#43a047', yellow:'#f9a825', blue:'#1e88e5'};
+const TURN_ORDER = ['red','blue','yellow','green']; // clockwise
+const TEAM = c => (c==='red'||c==='yellow') ? 'RY' : 'BG';
+
+// ---------- State ----------
+const cv = document.getElementById('board');
+const ctx = cv.getContext('2d');
+const S = 600/15;
+let players = [];       // [{color, ai}]
+let marbles = {};       // color -> [p x4]  -1 base, 0..39 loop(rel), 40..43 lane, 44 done
+let hands = {};         // color -> [card,...]  card like 'AS','10H','JD'
+let deck = [];
+let turn = 0, gameOver = true;
+let selCard = null;     // index into current hand
+let phase = 'idle';     // idle|pickCard|pickMarble|pickSwap|pickSteps|pickSecond
+let legal = [];         // legal marble indices for current selection
+let split = null;       // {first, remaining}
+const log = m => { document.getElementById('statusbar').innerHTML = m; };
+const chip = c => '<span class="chip" style="background:'+COLORS[c]+'"></span>';
+const pname = c => chip(c)+c.charAt(0).toUpperCase()+c.slice(1);
+const cur = () => players[turn];
+
+// ---------- Setup ----------
+let pcount = 4;
+const seatSel = [];
+function seats(){ return pcount===2 ? ['red','yellow'] : TURN_ORDER; }
+function renderPlayerList(){
+  const el = document.getElementById('plist'); el.innerHTML='';
+  seats().forEach((c,i)=>{
+    if(seatSel[i]===undefined) seatSel[i]='Human';
+    const row = document.createElement('div'); row.className='pset';
+    row.innerHTML = '<span><b>'+pname(c)+'</b>'+(pcount===4?(' <span style="color:#94a3b8;font-size:12px">team '+TEAM(c)+'</span>'):'')+'</span>';
+    const sel = document.createElement('select');
+    ['Human','Computer'].forEach(o=>{ const op=document.createElement('option'); op.textContent=o; if(seatSel[i]===o) op.selected=true; sel.appendChild(op); });
+    sel.onchange = ()=>{ seatSel[i]=sel.value; };
+    row.appendChild(sel); el.appendChild(row);
+  });
+}
+document.getElementById('pcount').addEventListener('click', e=>{
+  const b = e.target.closest('button'); if(!b) return;
+  document.querySelectorAll('#pcount button').forEach(x=>x.classList.remove('sel'));
+  b.classList.add('sel'); pcount = +b.dataset.n; renderPlayerList();
+});
+renderPlayerList();
+document.getElementById('tab-ludo').onclick = ()=>{ location.href='index.html'; };
+document.getElementById('newgame').onclick = ()=>document.getElementById('setup').classList.remove('hidden');
+document.getElementById('howto').onclick = ()=>alert('Marble Loop rules:\n\n- Each turn, tap a card, then a glowing marble.\n- A or K: bring a marble out of base (A also moves 1, K also moves 13).\n- Number cards move forward; 4 moves backward 4; Q moves 12.\n- 7: split between two marbles - tap a marble, pick steps, tap the next marble (or Skip rest).\n- J: swap one of your marbles on the loop with any other marble on the loop.\n- Landing on an opponent sends them back to base. Start cells are safe.\n- Move up your colored lane; the last step needs an exact count.\n- 4-player games are 2v2: your team wins when both partners are home.');
+
+function newDeck(){
+  const ranks = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+  const suits = ['S','H','D','C'];
+  deck = [];
+  for(const s of suits) for(const r of ranks) deck.push(r+s);
+  for(let i=deck.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [deck[i],deck[j]]=[deck[j],deck[i]]; }
+}
+function deal(){
+  if(deck.length < players.length*4) newDeck();
+  for(const p of players) hands[p.color] = deck.splice(0,4);
+}
+document.getElementById('startbtn').onclick = ()=>{
+  players = seats().map((c,i)=>({color:c, ai:seatSel[i]==='Computer'}));
+  marbles = {}; players.forEach(p=>marbles[p.color]=[-1,-1,-1,-1]);
+  newDeck(); deal();
+  turn = 0; gameOver = false; selCard = null; phase = 'pickCard'; split = null;
+  document.getElementById('setup').classList.add('hidden');
+  log(pname(cur().color)+' - pick a card'); render(); renderHand(); maybeAI();
+};
+
+// ---------- Rules ----------
+function absIdx(color,p){ return (START[color]+p)%40; }
+function marbleAtAbs(a, exclColor, exclIdx){
+  for(const pl of players){
+    for(let i=0;i<4;i++){
+      if(pl.color===exclColor && i===exclIdx) continue;
+      const p = marbles[pl.color][i];
+      if(p>=0 && p<=39 && absIdx(pl.color,p)===a) return {color:pl.color, idx:i};
+    }
+  }
+  return null;
+}
+function stepsFor(card){
+  const r = card.slice(0, card.length-1);
+  if(r==='A') return 1; if(r==='K') return 13; if(r==='Q') return 12;
+  if(r==='J'||r==='7') return null;
+  return parseInt(r,10);
+}
+function legalMarbles(color, card){
+  const r = card.slice(0, card.length-1);
+  const out = [];
+  marbles[color].forEach((p,i)=>{
+    if(p===44) return;
+    if(r==='J'){ if(p>=0 && p<=39) out.push(i); return; }
+    if(p===-1){
+      if(r==='A'||r==='K'){
+        const occ = marbleAtAbs(START[color], color, -1);
+        if(!occ) out.push(i);
+      }
+      return;
+    }
+    if(r==='4'){ if(p<=39) out.push(i); return; }
+    const d = stepsFor(card) || 7; // 7 handled with split UI, treat as forward here
+    if(p<=39){
+      if(p+d<=44) out.push(i);
+    } else { // already in lane
+      if(p+d<=44) out.push(i);
+    }
+  });
+  return out;
+}
+function anyLegal(color){
+  return hands[color].some(c => legalMarbles(color,c).length>0);
+}
+function applyForward(color, i, d){
+  let p = marbles[color][i];
+  let msg = '';
+  if(p===-1){ marbles[color][i]=0; return pname(color)+' enters the loop'; }
+  p += d; marbles[color][i]=p;
+  if(p===44) msg = pname(color)+' gets a marble home!';
+  else if(p<=39){
+    const occ = marbleAtAbs(absIdx(color,p), color, i);
+    if(occ && TEAM(occ.color)!==TEAM(color)){
+      marbles[occ.color][occ.idx] = -1;
+      msg = pname(color)+' sends '+pname(occ.color)+' back to base!';
+    }
+  }
+  return msg || pname(color)+' moves '+d;
+}
+function checkWin(){
+  for(const pl of players){
+    if(marbles[pl.color].every(p=>p===44)){
+      if(pcount===2 || players.every(q=>TEAM(q.color)!==TEAM(pl.color) || marbles[q.color].every(p=>p===44))){
+        if(pcount===2 || players.filter(q=>TEAM(q.color)===TEAM(pl.color)).every(q=>marbles[q.color].every(p=>p===44))){
+          gameOver = true;
+          log('&#127942; '+(pcount===4?('Team '+TEAM(pl.color)) : pname(pl.color))+' WINS! Tap New Game');
+          render(); renderHand(); return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+function endTurn(){
+  if(gameOver) return;
+  selCard = null; phase = 'pickCard'; split = null;
+  document.getElementById('skipbtn').classList.add('hidden');
+  document.getElementById('discardbtn').classList.add('hidden');
+  hideSteps();
+  if(players.every(p=>hands[p.color].length===0)) deal();
+  turn = (turn+1)%players.length;
+  log(pname(cur().color)+' - pick a card');
+  render(); renderHand(); maybeAI();
+}
+
+// ---------- UI: hand ----------
+function cardLabel(c){ return c.slice(0,c.length-1)+' '+c.slice(-1); }
+function renderHand(){
+  const el = document.getElementById('hand'); el.innerHTML='';
+  if(gameOver) return;
+  const color = cur().color;
+  if(cur().ai){ el.innerHTML='<span style="color:#94a3b8;font-size:14px">Computer is thinking...</span>'; return; }
+  hands[color].forEach((c,ci)=>{
+    const b = document.createElement('button');
+    b.className = 'cardbtn'+((c.endsWith('H')||c.endsWith('D'))?' red':'')+(selCard===ci?' sel':'');
+    b.textContent = cardLabel(c);
+    b.onclick = ()=>pickCard(ci);
+    el.appendChild(b);
+  });
+}
+function hideSteps(){ const st=document.getElementById('steps'); st.style.display='none'; st.innerHTML=''; }
+function showSteps(max, cb){
+  const st = document.getElementById('steps'); st.innerHTML=''; st.style.display='flex';
+  for(let s=1;s<=max;s++){
+    const b=document.createElement('button'); b.textContent=s;
+    b.onclick=()=>{ hideSteps(); cb(s); };
+    st.appendChild(b);
+  }
+}
+function pickCard(ci){
+  if(gameOver || cur().ai || phase==='pickSteps' || phase==='pickSecond' || phase==='pickSwap') return;
+  const color = cur().color;
+  selCard = ci;
+  const card = hands[color][ci];
+  legal = legalMarbles(color, card);
+  if(legal.length===0){
+    log('That card has no legal move - pick another, or discard');
+    document.getElementById('discardbtn').classList.remove('hidden');
+    phase = 'pickCard'; renderHand(); render(); return;
+  }
+  phase = 'pickMarble';
+  log(pname(color)+' played '+cardLabel(card)+' - tap a glowing marble');
+  renderHand(); render();
+}
+document.getElementById('discardbtn').onclick = ()=>{
+  const color = cur().color;
+  if(selCard!==null) hands[color].splice(selCard,1);
+  else hands[color].pop();
+  log(pname(color)+' discards - no legal move');
+  endTurn();
+};
+document.getElementById('skipbtn').onclick = ()=>{
+  // finish a split-7 early or cancel selection
+  if(split){ split=null; document.getElementById('skipbtn').classList.add('hidden'); endTurn(); }
+  else { selCard=null; phase='pickCard'; legal=[]; log(pname(cur().color)+' - pick a card'); renderHand(); render(); }
+};
+
+cv.addEventListener('click', e=>{
+  if(gameOver || cur().ai || !phase) return;
+  const r = cv.getBoundingClientRect();
+  const x = (e.clientX-r.left)*600/r.width, y = (e.clientY-r.top)*600/r.height;
+  const color = cur().color;
+  const card = selCard!==null ? hands[color][selCard] : null;
+  const hit = (list, pred)=>{
+    for(const m of list){
+      const [px,py] = marbleXY(m.color, marbles[m.color][m.idx], m.idx);
+      if(Math.hypot(px-x,py-y) < S*0.8 && pred(m)) return m;
+    }
+    return null;
+  };
+  if(phase==='pickMarble' && card){
+    const m = hit(legal.map(i=>({color,idx:i})), ()=>true);
+    if(!m) return;
+    playOn(color, m.idx, card);
+  } else if(phase==='pickSwap'){
+    const targets = [];
+    for(const pl of players) marbles[pl.color].forEach((p,i)=>{ if(p>=0&&p<=39 && !(pl.color===color&&i===split.first)) targets.push({color:pl.color,idx:i}); });
+    const m = hit(targets, ()=>true);
+    if(!m) return;
+    const a = marbles[color][split.first];
+    marbles[color][split.first] = marbles[m.color][m.idx];
+    marbles[m.color][m.idx] = a;
+    hands[color].splice(selCard,1);
+    log(pname(color)+' swaps with '+pname(m.color));
+    split=null;
+    if(!checkWin()) endTurn(); else render();
+  } else if(phase==='pickSecond'){
+    const m = hit(legal.map(i=>({color,idx:i})), mm=>mm.idx!==split.first);
+    if(!m) return;
+    const msg = applyForward(color, m.idx, split.remaining);
+    hands[color].splice(selCard,1);
+    log(msg);
+    split=null; document.getElementById('skipbtn').classList.add('hidden');
+    if(!checkWin()) endTurn(); else render();
+  }
+});
+function playOn(color, i, card){
+  const r = card.slice(0,card.length-1);
+  if(r==='J'){
+    split = {first:i};
+    phase = 'pickSwap';
+    log('Tap any loop marble to swap with');
+    render(); return;
+  }
+  if(r==='7'){
+    showSteps(7, s=>{
+      const msg = applyForward(color, i, s);
+      if(s===7){
+        hands[color].splice(selCard,1);
+        log(msg);
+        if(!checkWin()) endTurn(); else render();
+      } else {
+        split = {first:i, remaining:7-s};
+        legal = marbles[color].map((p,idx)=>idx).filter(idx=>idx!==i && marbles[color][idx]!==44 && marbles[color][idx]>=0 && marbles[color][idx]+ (7-s) <=44);
+        if(legal.length===0){
+          hands[color].splice(selCard,1);
+          log(msg+' (no second marble)');
+          split=null;
+          if(!checkWin()) endTurn(); else render();
+        } else {
+          phase = 'pickSecond';
+          document.getElementById('skipbtn').classList.remove('hidden');
+          log(msg+' - tap a second marble for the remaining '+(7-s));
+          render();
+        }
+      }
+    });
+    render(); return;
+  }
+  const d = (r==='4') ? -4 : stepsFor(card);
+  let msg;
+  if(r==='4'){
+    let p = marbles[color][i];
+    p = p-4; if(p<0) p+=40;
+    marbles[color][i]=p;
+    const occ = marbleAtAbs(absIdx(color,p), color, i);
+    msg = pname(color)+' moves back 4';
+    if(occ && TEAM(occ.color)!==TEAM(color)){ marbles[occ.color][occ.idx]=-1; msg = pname(color)+' sends '+pname(occ.color)+' back to base!'; }
+  } else {
+    msg = applyForward(color, i, d);
+  }
+  hands[color].splice(selCard,1);
+  log(msg);
+  if(!checkWin()) endTurn(); else render();
+}
+
+// ---------- AI ----------
+function maybeAI(){
+  if(gameOver || !cur() || !cur().ai) return;
+  setTimeout(()=>{
+    if(gameOver) return;
+    const color = cur().color;
+    let best = null;
+    hands[color].forEach((card,ci)=>{
+      legalMarbles(color,card).forEach(i=>{
+        const p = marbles[color][i];
+        let score = Math.random();
+        const r = card.slice(0,card.length-1);
+        if(p===-1) score += 50;
+        const d = stepsFor(card)||7;
+        if(p>=0 && r!=='J' && r!=='4' && p+d===44) score += 80;
+        if(p>=0 && r!=='J' && r!=='4' && p+d<=39){
+          const occ = marbleAtAbs(absIdx(color,p+d), color, i);
+          if(occ && TEAM(occ.color)!==TEAM(color)) score += 100;
+        }
+        if(r==='J') score -= 20;
+        if(!best || score>best.score) best = {ci, i, score};
+      });
+    });
+    if(!best){
+      hands[color].pop();
+      log(pname(color)+' (AI) discards - no legal move');
+      endTurn(); return;
+    }
+    selCard = best.ci;
+    const card = hands[color][best.ci];
+    phase = 'pickMarble';
+    log(pname(color)+' (AI) plays '+cardLabel(card));
+    setTimeout(()=>playOn(color, best.i, card), 400);
+  }, 700);
+}
+
+// ---------- Rendering ----------
+function cellXY(rc){ return [ (rc[1]+0.5)*S, (rc[0]+0.5)*S ]; }
+function marbleXY(color,p,slot){
+  if(p===-1) return cellXY(BASE[color][slot]);
+  if(p<=39) return cellXY(RING[absIdx(color,p)]);
+  if(p<=43) return cellXY(LANE[color][p-40]);
+  // done: stack near lane end toward center
+  const e = LANE[color][3];
+  const dirR = Math.sign(7-e[0]), dirC = Math.sign(7-e[1]);
+  return cellXY([e[0]+dirR, e[1]+dirC]);
+}
+function drawCell(rc, fill, star){
+  const x=rc[1]*S, y=rc[0]*S;
+  ctx.fillStyle=fill; ctx.fillRect(x,y,S,S);
+  ctx.strokeStyle='#94a3b8'; ctx.lineWidth=1; ctx.strokeRect(x,y,S,S);
+  if(star){ ctx.fillStyle='#64748b'; ctx.font=(S*0.5)+'px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('\u2605', x+S/2, y+S/2+2); }
+}
+function render(){
+  ctx.fillStyle='#e2e8f0'; ctx.fillRect(0,0,600,600);
+  // center
+  ctx.fillStyle='#0f172a'; ctx.beginPath(); ctx.arc(300,300,S*1.6,0,7); ctx.fill();
+  ctx.fillStyle='#e2e8f0'; ctx.font='bold '+(S*0.55)+'px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('BF',300,300);
+  // bases
+  for(const c of TURN_ORDER){
+    const pad = BASE[c];
+    const minR = Math.min(...pad.map(p=>p[0])), minC = Math.min(...pad.map(p=>p[1]));
+    ctx.fillStyle=COLORS[c];
+    ctx.fillRect((minC-0.4)*S,(minR-0.4)*S,2.8*S,2.8*S);
+    for(const sp of pad){
+      ctx.beginPath(); ctx.arc((sp[1]+0.5)*S,(sp[0]+0.5)*S,S*0.4,0,7);
+      ctx.fillStyle='#f8fafc'; ctx.fill(); ctx.strokeStyle=COLORS[c]; ctx.lineWidth=2; ctx.stroke();
+    }
+  }
+  // ring
+  RING.forEach((rc,i)=>{
+    let fill='#ffffff';
+    for(const c of TURN_ORDER) if(START[c]===i) fill=COLORS[c];
+    drawCell(rc, fill, fill==='#ffffff' && Object.values(START).some(v=>v===i));
+  });
+  // lanes
+  for(const c of TURN_ORDER) LANE[c].forEach(rc=>drawCell(rc, COLORS[c]));
+  // marbles
+  const byCell = {};
+  for(const pl of players){
+    marbles[pl.color].forEach((p,slot)=>{
+      const [x,y]=marbleXY(pl.color,p,slot);
+      const key = p===-1 ? pl.color+slot : Math.round(x)+','+Math.round(y);
+      (byCell[key]=byCell[key]||[]).push({x,y,color:pl.color,slot});
+    });
+  }
+  for(const key in byCell){
+    const g=byCell[key];
+    g.forEach((t,gi)=>{
+      let dx=0,dy=0,r=S*0.34;
+      if(g.length>1){ r=S*0.24; dx=(gi%2?1:-1)*S*0.19; dy=(gi>1?1:-1)*S*0.19; }
+      const glow = !gameOver && cur() && !cur().ai && cur().color===t.color &&
+        ((phase==='pickMarble' && legal.includes(t.slot)) ||
+         (phase==='pickSecond' && legal.includes(t.slot) && split && t.slot!==split.first) ||
+         (phase==='pickSwap' && marbles[t.color][t.slot]>=0 && marbles[t.color][t.slot]<=39));
+      ctx.beginPath(); ctx.arc(t.x+dx,t.y+dy,r,0,7);
+      ctx.fillStyle=COLORS[t.color]; ctx.fill();
+      ctx.lineWidth=glow?4:2; ctx.strokeStyle=glow?'#0ea5e9':'#ffffff'; ctx.stroke();
+      if(glow){ ctx.beginPath(); ctx.arc(t.x+dx,t.y+dy,r+5,0,7); ctx.strokeStyle='rgba(14,165,233,.5)'; ctx.lineWidth=3; ctx.stroke(); }
+    });
+  }
+}
+render();
+
+// ---------- Demo (#demo): staged mid-game for screenshots ----------
+if(location.hash==='#demo'){
+  document.getElementById('startbtn').click();
+  // stage: some marbles out, some in lanes, hands visible
+  marbles.red = [14, 40, -1, -1];
+  marbles.blue = [2, 26, -1, -1];
+  marbles.yellow = [8, 41, 44, -1];
+  marbles.green = [33, 19, -1, -1];
+  hands.red = ['AS','7H','4D','KC'];
+  hands.blue = ['9S','JH','2D','QC'];
+  hands.yellow = ['5S','10H','8D','3C'];
+  hands.green = ['6S','QH','AD','10C'];
+  turn = 0; phase='pickCard';
+  log(pname('red')+' - pick a card');
+  render(); renderHand();
+}
+</script>
+</body>
+</html>
