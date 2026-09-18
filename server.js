@@ -10,7 +10,7 @@ const { WebSocketServer } = require('ws');
 const PORT = process.env.PORT || 8787;
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.json': 'application/json', '.png': 'image/png', '.md': 'text/markdown; charset=utf-8' };
-const PUBLIC = new Set(['/', '/index.html', '/marble.html', '/net.js', '/gamify.js', '/landing.html', '/icon.png']);
+const PUBLIC = new Set(['/', '/index.html', '/marble.html', '/net.js', '/gamify.js', '/cloud.js', '/landing.html', '/icon.png']);
 
 const server = http.createServer((req, res) => {
   const url = req.url.split('?')[0];
