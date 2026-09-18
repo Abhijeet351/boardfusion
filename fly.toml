@@ -1,0 +1,21 @@
+# Deploy on Fly.io: `fly launch --config fly.toml` then `fly deploy`.
+# Fly gives you a yourapp.fly.dev HTTPS domain automatically; wss works out of the box.
+app = "boardfusion"
+primary_region = "bom"   # Mumbai - change to the region closest to your players
+
+[build]
+
+[env]
+  PORT = "8080"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[http_service.checks]]
+  path = "/healthz"
+  interval = "30s"
+  timeout = "5s"
