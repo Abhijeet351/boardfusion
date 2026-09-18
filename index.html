@@ -39,6 +39,9 @@
   #marble { width:min(92vw,560px); background:var(--card); border-radius:16px; padding:20px; margin:10px 0 30px; line-height:1.55; font-size:14.5px; }
   #marble h3 { margin-top:0; }
   #marble .badge { display:inline-block; background:#b45309; color:#fff; font-size:11px; font-weight:800; padding:3px 9px; border-radius:20px; letter-spacing:.6px; vertical-align:2px; margin-left:6px; }
+  .online-tools {width:min(92vw,560px);display:flex;align-items:center;justify-content:center;gap:7px;flex-wrap:wrap;margin:-10px 0 16px}
+  .online-tools button{border:1px solid #475569;background:#1e293b;color:#fff;border-radius:9px;padding:8px 11px;cursor:pointer}.online-tools .rematch{background:#38bdf8;color:#082f49;font-weight:800}
+  #reactionpop{position:fixed;z-index:20;font-size:52px;pointer-events:none;animation:pop 1.6s ease-out forwards}@keyframes pop{0%{opacity:0;transform:scale(.5)}20%{opacity:1;transform:scale(1.2)}100%{opacity:0;transform:translateY(-90px)}}
   .hidden { display:none !important; }
 </style>
 </head>
@@ -58,6 +61,10 @@
     <button id="onlinebtn">Online</button>
     <button id="howto">Rules</button>
   </div>
+</div>
+<div id="onlinetools" class="online-tools hidden" aria-label="Online match controls">
+  <button data-react="👏">👏</button><button data-react="😂">😂</button><button data-react="😮">😮</button><button data-react="🔥">🔥</button><button data-react="🎉">🎉</button><button data-react="👍">👍</button>
+  <button id="mutereactions">Mute reactions</button><button id="rematch" class="rematch hidden">Rematch</button><span id="rematchstatus"></span>
 </div>
 
 <div id="marble" class="hidden">
@@ -87,7 +94,7 @@
 <div class="overlay hidden" id="online">
   <div class="panel">
     <h2>Online Room</h2>
-    <p class="sub">Real-time rooms over the BoardFusion relay. One player hosts; friends join with the room code.</p>
+    <p class="sub">Server-verified rooms with secure seat resume. Share the room code with friends.</p>
     <div id="connform">
       <input id="wsurl" placeholder="ws://localhost:8787/ws" style="width:100%;padding:10px;border-radius:8px;border:1px solid #475569;background:#0f172a;color:#e2e8f0;margin-bottom:10px">
       <input id="pname_in" placeholder="Your name" style="width:100%;padding:10px;border-radius:8px;border:1px solid #475569;background:#0f172a;color:#e2e8f0;margin-bottom:10px">
@@ -104,7 +111,7 @@
       <p class="note" id="waitnote">Waiting for the host to start...</p>
     </div>
     <p class="note" id="onlineerr" style="color:#fca5a5"></p>
-    <p class="note">Rooms need the relay running: <b>npm install && npm start</b> in the project folder, then use that address here. Host-authoritative: the host device runs the game and everyone else sends moves to it.</p>
+    <p class="note">Moves, dice, turns, captures, and wins are verified by the server. If your connection drops, this browser automatically resumes your seat for up to 2 minutes after everyone leaves.</p>
     <button class="ctl" id="closeonline" style="margin-top:10px;width:100%">Close</button>
   </div>
 </div>
@@ -203,7 +210,7 @@ function absIdx(color,p){ return (START[color]+p)%52; }
 
 function doRoll(forced){
   if(gameOver || awaitingMove) return;
-  if(window.NET && NET.mode==='client'){ NET.intent({kind:'roll'}); return; }
+  if(window.NET&&NET.mode==='v2'){NET.roll();return;}
   dice = forced || (1+Math.floor(Math.random()*6));
   setDiceFace(dice);
   const color = players[turn].color;
@@ -306,8 +313,7 @@ cv.addEventListener('click', e=>{
   for(const i of movableCache){
     const [px,py] = tokenXY(color, tokens[color][i], i);
     if(Math.hypot(px-x,py-y) < S*0.8){
-      if(window.NET && NET.mode==='client'){ NET.intent({kind:'pick', idx:i}); }
-      else { moveToken(color,i); }
+      if(window.NET&&NET.mode==='v2')NET.pick(i);else moveToken(color,i);
       return;
     }
   }
@@ -377,98 +383,49 @@ function render(){
       if(glow){ ctx.beginPath(); ctx.arc(t.x+dx,t.y+dy,r+5,0,7); ctx.strokeStyle='rgba(14,165,233,.5)'; ctx.lineWidth=3; ctx.stroke(); }
     });
   }
-  if(window.NET && NET.mode==='host') syncState();
 }
 function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
 setDiceFace(1);
 render();
 
 
-// ---------- Online rooms ----------
-let lobbyNames = [];
-function seatColors(n){ return n===2 ? ['red','yellow'] : n===3 ? ['red','green','yellow'] : ORDER; }
-function syncState(){
-  NET.hostSend({kind:'sync', tokens, turn, dice, awaitingMove, movableCache, gameOver,
-    status:document.getElementById('statusbar').innerHTML,
-    players:players.map(p=>({color:p.color, ai:p.ai, name:p.name||null}))});
+// ---------- Server-authoritative online rooms ----------
+let lobbyNames=[],onlineResultSeen=null;
+function seatColors(n){return n===2?['red','yellow']:n===3?['red','green','yellow']:ORDER;}
+function onlineLog(state,event){
+ if(state.over)return '&#127942; '+pname(state.players[state.winner].color)+' '+state.players[state.winner].name+' WINS!';
+ const pl=state.players[state.turn],prefix=pname(pl.color)+' '+pl.name;
+ if(event==='forfeit')return prefix+' rolled three 6s - turn over';
+ if(event==='no-move')return prefix+' had no move. Next turn.';
+ if(state.awaiting)return prefix+' rolled '+state.dice+' - tap a glowing token';
+ return prefix+' to roll';
 }
-function applySync(m){
-  players = m.players.map(p=>({color:p.color, ai:p.ai, done:false, name:p.name}));
-  tokens = m.tokens; turn = m.turn; dice = m.dice;
-  awaitingMove = m.awaitingMove; movableCache = m.movableCache || [];
-  gameOver = m.gameOver;
-  if(dice) setDiceFace(dice);
-  document.getElementById('dicebtn').disabled = gameOver;
-  document.getElementById('setup').classList.add('hidden');
-  document.getElementById('online').classList.add('hidden');
-  log(m.status);
-  render();
+function applyRoom(room,event){
+ lobbyNames=room.seats.map(x=>x.name);refreshLobby(room);
+ if(!room.state)return;
+ const g=room.state;players=g.players.map(p=>({color:p.color,ai:false,done:p.done,name:p.name}));tokens=g.tokens;turn=g.turn;dice=g.dice;awaitingMove=g.awaiting;movableCache=g.awaiting?getMovable(players[turn].color,g.dice):[];gameOver=g.over;sixes=g.sixes;
+ if(dice)setDiceFace(dice);else setDiceFace(1);
+ document.getElementById('dicebtn').disabled=gameOver||NET.seat!==turn||awaitingMove;
+ document.getElementById('setup').classList.add('hidden');document.getElementById('online').classList.add('hidden');document.getElementById('onlinetools').classList.remove('hidden');
+ document.getElementById('rematch').classList.toggle('hidden',!gameOver);document.getElementById('rematchstatus').textContent=gameOver&&room.rematchVotes?room.rematchVotes+'/'+room.seats.length+' ready':'';
+ log(onlineLog(g,event));render();
+ if(g.over&&room.resultId&&onlineResultSeen!==room.resultId){onlineResultSeen=room.resultId;if(NET.seat===g.winner){BFGame.win(g.players[g.winner].name,room.resultId);}}
+ if(!g.over)onlineResultSeen=null;
 }
-function refreshLobby(){
-  document.getElementById('connform').classList.add('hidden');
-  document.getElementById('lobbyview').classList.remove('hidden');
-  document.getElementById('roomline').textContent = 'Room ' + NET.room + ' (' + lobbyNames.length + '/4)';
-  document.getElementById('lobbylist').innerHTML = lobbyNames.map((n,i)=>'<li>'+pname(seatColors(4)[i])+' '+n+(i===0?' (host)':'')+'</li>').join('');
-  const isHost = NET.mode==='host';
-  document.getElementById('startonline').classList.toggle('hidden', !isHost);
-  document.getElementById('waitnote').classList.toggle('hidden', isHost);
-}
-function defaultWsUrl(){
-  if(location.protocol==='http:'||location.protocol==='https:')
-    return (location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws';
-  return 'ws://localhost:8787/ws';
-}
-document.getElementById('onlinebtn').onclick = ()=>{
-  const inp = document.getElementById('wsurl');
-  if(!inp.value) inp.value = defaultWsUrl();
-  document.getElementById('online').classList.remove('hidden');
-};
-document.getElementById('closeonline').onclick = ()=>document.getElementById('online').classList.add('hidden');
-async function ensureConn(){
-  const url = document.getElementById('wsurl').value.trim() || defaultWsUrl();
-  document.getElementById('onlineerr').textContent = '';
-  try { await NET.connect(url); } catch(e){ document.getElementById('onlineerr').textContent = 'Could not reach the relay at ' + url; throw e; }
-}
-document.getElementById('createroom').onclick = async ()=>{
-  const n = document.getElementById('pname_in').value.trim() || 'Host';
-  try { await ensureConn(); NET.create(n); } catch(e){}
-};
-document.getElementById('joinroom').onclick = async ()=>{
-  const n = document.getElementById('pname_in').value.trim() || 'Guest';
-  const c = document.getElementById('roomcode').value.trim();
-  if(!c){ document.getElementById('onlineerr').textContent = 'Enter the room code'; return; }
-  try { await ensureConn(); NET.join(c, n); } catch(e){}
-};
-NET.on('created', ()=>{ lobbyNames = [NET.name]; refreshLobby(); });
-NET.on('joined', ()=>{ refreshLobby(); });
-NET.on('lobby', m=>{ lobbyNames = m.players; if(NET.mode==='client' && !lobbyNames.includes(NET.name)) lobbyNames.push(NET.name); refreshLobby(); });
-NET.on('error', m=>{ document.getElementById('onlineerr').textContent = m.reason || 'Room error'; });
-NET.on('closed', ()=>{ document.getElementById('onlineerr').textContent = 'Connection closed'; });
-NET.on('state', m=>{ if(m.kind==='sync') applySync(m); });
-NET.on('start', ()=>{ document.getElementById('online').classList.add('hidden'); document.getElementById('setup').classList.add('hidden'); });
-NET.on('intent', m=>{
-  if(NET.mode!=='host' || gameOver) return;
-  const seatIdx = lobbyNames.indexOf(m.from);
-  if(seatIdx<0 || seatIdx>=players.length) return;
-  const seatColor = players[seatIdx].color;
-  if(players[turn].color !== seatColor) return;
-  if(m.kind==='roll' && !awaitingMove && dice===null) doRoll();
-  else if(m.kind==='pick' && awaitingMove && movableCache.includes(m.idx)) moveToken(seatColor, m.idx);
-});
-document.getElementById('startonline').onclick = ()=>{
-  if(lobbyNames.length<2){ document.getElementById('onlineerr').textContent='Need at least 2 players'; return; }
-  const cols = seatColors(lobbyNames.length);
-  players = lobbyNames.map((n,i)=>({color:cols[i], ai:false, done:false, name:n}));
-  BFGame.start('Dice Race Online', lobbyNames);
-  tokens = {}; players.forEach(p=>tokens[p.color]=[-1,-1,-1,-1]);
-  turn = 0; dice = null; sixes = 0; gameOver = false; awaitingMove = false;
-  document.getElementById('dicebtn').disabled = false;
-  document.getElementById('online').classList.add('hidden');
-  log(pname(players[0].color)+' ('+lobbyNames[0]+') to roll');
-  NET.hostStart({});
-  render();
-};
-if(location.hash==='#online'){ document.getElementById('online').classList.remove('hidden'); }
+function refreshLobby(room){if(!NET.room)return;document.getElementById('connform').classList.add('hidden');document.getElementById('lobbyview').classList.remove('hidden');const seats=room?.seats||lobbyNames.map((name,seat)=>({name,seat,online:true}));document.getElementById('roomline').textContent='Room '+NET.room+' ('+seats.length+'/4)';document.getElementById('lobbylist').innerHTML=seats.map((x,i)=>'<li>'+pname(seatColors(seats.length)[i])+' '+escapeHtml(x.name)+(i===0?' (host)':'')+(x.online?'':' - reconnecting')+'</li>').join('');const isHost=NET.seat===0;document.getElementById('startonline').classList.toggle('hidden',!isHost||!!room?.state);document.getElementById('waitnote').classList.toggle('hidden',isHost||!!room?.state);}
+function escapeHtml(v){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function defaultWsUrl(){if(location.protocol==='http:'||location.protocol==='https:')return(location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws';return'ws://localhost:8787/ws';}
+document.getElementById('onlinebtn').onclick=()=>{const inp=document.getElementById('wsurl');if(!inp.value)inp.value=defaultWsUrl();document.getElementById('online').classList.remove('hidden');};
+document.getElementById('closeonline').onclick=()=>document.getElementById('online').classList.add('hidden');
+async function ensureConn(){const url=document.getElementById('wsurl').value.trim()||defaultWsUrl();document.getElementById('onlineerr').textContent='';try{await NET.connect(url)}catch(e){document.getElementById('onlineerr').textContent='Could not reach the relay at '+url;throw e}}
+document.getElementById('createroom').onclick=async()=>{const n=document.getElementById('pname_in').value.trim()||'Host';try{await ensureConn();NET.create(n)}catch(_){}};
+document.getElementById('joinroom').onclick=async()=>{const n=document.getElementById('pname_in').value.trim()||'Guest',c=document.getElementById('roomcode').value.trim();if(!c){document.getElementById('onlineerr').textContent='Enter the room code';return}try{await ensureConn();NET.join(c,n)}catch(_){}};
+NET.on('v2-welcome',m=>{applyRoom(m.room);});NET.on('v2-resumed',m=>applyRoom(m.room,'resumed'));NET.on('resumed',()=>document.getElementById('onlineerr').textContent='Seat resumed');NET.on('v2-lobby',m=>applyRoom(m.room));NET.on('v2-state',m=>applyRoom(m.room,m.event));NET.on('v2-rematch',m=>{applyRoom(m.room,m.ready?'rematch':'vote');});
+NET.on('v2-reaction',m=>{if(NET.muted)return;const x=document.createElement('div');x.id='reactionpop';x.textContent=m.emoji;x.style.left=(20+Math.random()*60)+'vw';x.style.top='55vh';document.body.appendChild(x);setTimeout(()=>x.remove(),1700)});
+NET.on('error',m=>document.getElementById('onlineerr').textContent=m.reason||'Room error');NET.on('closed',()=>{if(NET.room)log('Connection lost - resuming seat...')});
+document.getElementById('startonline').onclick=()=>{if(lobbyNames.length<2){document.getElementById('onlineerr').textContent='Need at least 2 players';return}BFGame.start('Dice Race Online',lobbyNames);NET.start();};
+document.querySelectorAll('[data-react]').forEach(b=>b.onclick=()=>NET.react(b.dataset.react));document.getElementById('mutereactions').onclick=()=>{NET.mute(!NET.muted);document.getElementById('mutereactions').textContent=!NET.muted?'Mute reactions':'Unmute reactions'};document.getElementById('rematch').onclick=()=>NET.rematch();
+if(location.hash==='#online')document.getElementById('online').classList.remove('hidden');
 
 // ---------- Demo mode (#demo): scripted quick game for screenshots ----------
 if(location.hash==='#demo'){
