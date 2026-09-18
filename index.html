@@ -58,6 +58,32 @@
   .moment{position:fixed;inset:0;z-index:40;display:grid;place-items:center;pointer-events:none;background:radial-gradient(circle,rgba(91,74,220,.26),transparent 48%);animation:momentFade 1.35s ease forwards}.moment b{font-size:clamp(28px,9vw,60px);font-weight:950;text-transform:uppercase;letter-spacing:-2px;background:linear-gradient(120deg,#fff,#60e8ff,#ffd166);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 8px 18px #000);animation:momentIn 1.35s cubic-bezier(.16,.8,.2,1) forwards}@keyframes momentIn{0%{opacity:0;transform:scale(.3) rotate(-7deg)}20%,65%{opacity:1;transform:scale(1.04) rotate(0)}100%{opacity:0;transform:scale(1.3)}}@keyframes momentFade{70%{opacity:1}100%{opacity:0}}
   @media(max-width:540px){#playerrail{grid-template-columns:repeat(2,1fr)}.player-card{padding:6px}.player-avatar{width:31px;height:31px}.arena{width:96vw;border-radius:21px;padding:6px}#boardwrap{width:min(91vw,520px)}header h1{font-size:22px}.online-tools:before{width:100%;text-align:center}.panel{padding:21px 18px}}
   @media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important}}
+
+  /* Players live beside their matching home corners instead of in a detached rail. */
+  #boardstage{position:relative;width:min(90vw,540px);margin:0 auto;padding:9px 0}
+  #boardwrap{width:100%;padding:0;position:relative}
+  #playerrail{position:absolute;inset:0;display:block;width:auto;margin:0;padding:0;pointer-events:none;z-index:4}
+  .player-card{position:absolute;width:clamp(86px,19%,112px);padding:6px;gap:6px;border-color:color-mix(in srgb,var(--pc) 62%,white 12%);background:linear-gradient(145deg,rgba(5,9,25,.91),color-mix(in srgb,var(--pc) 14%,rgba(5,9,25,.9)));box-shadow:0 7px 20px rgba(0,0,0,.34),inset 0 1px rgba(255,255,255,.08);opacity:.88;backdrop-filter:blur(8px)}
+  .player-card[data-color="red"]{left:7px;top:7px}.player-card[data-color="green"]{right:7px;top:7px}.player-card[data-color="yellow"]{right:7px;bottom:7px}.player-card[data-color="blue"]{left:7px;bottom:7px}
+  .player-card.active{transform:scale(1.04);box-shadow:0 0 0 2px color-mix(in srgb,var(--pc) 72%,white),0 7px 25px color-mix(in srgb,var(--pc) 32%,transparent)}
+  .player-card .player-avatar{width:31px;height:31px;border-radius:50%}.player-card .player-name{font-size:10px;text-shadow:0 1px 3px #000}.player-card .player-turn{font-size:7px;color:#d6def6}
+  /* A clear shaker cup contains the die until the authoritative result lands. */
+  #dicebtn{position:relative;display:block;width:92px;height:100px;padding:0;border:0;background:transparent;box-shadow:none;overflow:visible;isolation:isolate}
+  #dicebtn:before{content:'';position:absolute;left:15px;top:5px;width:60px;height:68px;border:2px solid rgba(219,246,255,.82);border-top:6px solid rgba(224,250,255,.92);border-radius:16px 16px 22px 22px;background:linear-gradient(120deg,rgba(255,255,255,.23),rgba(102,219,255,.07) 42%,rgba(255,255,255,.18));box-shadow:inset 8px 0 12px rgba(255,255,255,.13),inset -8px 0 15px rgba(66,173,255,.12),0 12px 24px rgba(0,0,0,.35);backdrop-filter:blur(2px);transform-origin:50% 90%;z-index:2}
+  #dicebtn:after{content:'SHAKE & ROLL';position:absolute;left:50%;bottom:0;transform:translateX(-50%);width:max-content;font-size:8px;font-weight:950;letter-spacing:1.3px;color:#aeefff;text-shadow:0 0 12px #3bdbff}
+  #dieface{position:absolute;left:32px;top:32px;width:31px;height:31px;border-radius:8px;background:#fff;display:grid;grid-template:repeat(3,1fr)/repeat(3,1fr);padding:5px;gap:1px;box-shadow:0 4px 10px rgba(0,0,0,.45);z-index:3;transform:rotate(-9deg)}
+  #dieface .pip{background:transparent}.pip.on{background:#111b36}
+  #dicebtn.shaking:before{animation:cupShake .65s cubic-bezier(.36,.07,.19,.97) infinite}
+  #dicebtn.shaking #dieface{animation:dieRattle .34s linear infinite}
+  #dicebtn.released:before{animation:cupTip .72s cubic-bezier(.2,.8,.2,1)}
+  #dicebtn.released #dieface{animation:dieThrow .9s cubic-bezier(.18,.78,.2,1)}
+  @keyframes cupShake{0%,100%{transform:translateX(0) rotate(0)}20%{transform:translateX(-6px) rotate(-9deg)}40%{transform:translateX(6px) rotate(9deg)}60%{transform:translateX(-5px) rotate(-7deg)}80%{transform:translateX(5px) rotate(7deg)}}
+  @keyframes dieRattle{0%{transform:translate(-8px,-10px) rotate(0)}33%{transform:translate(8px,5px) rotate(125deg)}66%{transform:translate(-5px,10px) rotate(245deg)}100%{transform:translate(-8px,-10px) rotate(360deg)}}
+  @keyframes cupTip{0%,40%{transform:rotate(0)}65%{transform:translate(-5px,-7px) rotate(-28deg)}100%{transform:rotate(0)}}
+  @keyframes dieThrow{0%{transform:translate(0,0) rotate(0) scale(.8)}45%{transform:translate(30px,-25px) rotate(380deg) scale(1.15)}72%{transform:translate(24px,15px) rotate(630deg) scale(1)}86%{transform:translate(21px,7px) rotate(700deg)}100%{transform:translate(0,0) rotate(711deg)}}
+  #dicebtn:disabled{opacity:.5}#dicebtn:not(:disabled):hover{transform:none}#dicebtn:not(:disabled):active{transform:scale(.97)}
+  @media(max-width:540px){#boardstage{width:min(92vw,520px)}.player-card{width:82px;padding:4px;gap:4px;border-radius:11px}.player-card .player-avatar{width:27px;height:27px}.player-card .player-name{font-size:9px}.player-card[data-color="red"]{left:4px;top:4px}.player-card[data-color="green"]{right:4px;top:4px}.player-card[data-color="yellow"]{right:4px;bottom:4px}.player-card[data-color="blue"]{left:4px;bottom:4px}#dicebtn{width:82px;height:92px;transform:scale(.92)}}
+
   .hidden { display:none !important; }
 </style>
 </head>
@@ -69,10 +95,9 @@
 </div>
 
 <div id="ludo-view">
-  <div id="playerrail" aria-live="polite"></div>
   <section class="arena">
   <div id="statusbar">Set up a game to begin</div>
-  <div id="boardwrap"><canvas id="board" width="600" height="600"></canvas></div>
+  <div id="boardstage"><div id="boardwrap"><canvas id="board" width="600" height="600"></canvas></div><div id="playerrail" aria-live="polite"></div></div>
   <div id="controls">
     <button id="dicebtn" disabled></button>
     <button id="newgame">New Game</button>
@@ -158,10 +183,16 @@ const SAFE = new Set([0,8,13,21,26,34,39,47]);
 const COLORS = {red:'#e53935', green:'#43a047', yellow:'#f9a825', blue:'#1e88e5'};
 const ORDER = ['red','green','yellow','blue'];
 const PIPS = {1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
-function setDiceFace(n){
-  const b = document.getElementById('dicebtn'); b.innerHTML='';
-  for(let i=0;i<9;i++){ const s=document.createElement('span'); s.className='pip'+(PIPS[n].includes(i)?' on':''); b.appendChild(s); }
+let diceAnimTimer=null,diceAwaitingResult=false;
+function setDiceFace(n,animate=false){
+  const b=document.getElementById('dicebtn');let face=document.getElementById('dieface');
+  if(!face){face=document.createElement('span');face.id='dieface';face.setAttribute('aria-hidden','true');b.appendChild(face)}
+  face.innerHTML='';for(let i=0;i<9;i++){const pip=document.createElement('span');pip.className='pip'+(PIPS[n].includes(i)?' on':'');face.appendChild(pip)}
+  b.setAttribute('aria-label','Roll dice. Current face '+n);
+  if(animate||diceAwaitingResult){clearTimeout(diceAnimTimer);b.classList.remove('shaking');void b.offsetWidth;b.classList.add('released');diceAwaitingResult=false;diceAnimTimer=setTimeout(()=>b.classList.remove('released'),920)}
 }
+function beginDiceShake(){const b=document.getElementById('dicebtn');if(b.disabled)return;clearTimeout(diceAnimTimer);b.classList.remove('released');b.classList.add('shaking');b.setAttribute('aria-busy','true');diceAwaitingResult=true;diceAnimTimer=setTimeout(()=>{if(diceAwaitingResult)b.classList.add('shaking')},700)}
+function finishDiceShake(n){const b=document.getElementById('dicebtn');setDiceFace(n,true);b.removeAttribute('aria-busy')}
 
 // ---------- Game state ----------
 const cv = document.getElementById('board');
@@ -231,7 +262,7 @@ function doRoll(forced){
   if(gameOver || awaitingMove) return;
   if(window.NET&&NET.mode==='v2'){NET.roll();return;}
   dice = forced || (1+Math.floor(Math.random()*6));
-  setDiceFace(dice);
+  finishDiceShake(dice);
   const color = players[turn].color;
   if(dice===6) sixes++; else sixes=0;
   if(sixes===3){ log(pname(color)+' rolled three 6s - turn over'); sixes=0; render(); setTimeout(nextTurn,900); return; }
@@ -298,7 +329,7 @@ function maybeAI(){
   setTimeout(()=>{
     if(gameOver||awaitingMove) return;
     const d = 1+Math.floor(Math.random()*6);
-    dice = d; setDiceFace(d);
+    dice = d; beginDiceShake(); finishDiceShake(d);
     if(d===6) sixes++; else sixes=0;
     if(sixes===3){ log(pname(pl.color)+' (AI) rolled three 6s - turn over'); sixes=0; render(); setTimeout(nextTurn,800); return; }
     const mv = getMovable(pl.color,d);
@@ -322,7 +353,7 @@ function maybeAI(){
   }, 650);
 }
 
-document.getElementById('dicebtn').onclick = ()=>{ if(!gameOver && !awaitingMove && players.length && !players[turn].ai) doRoll(); };
+document.getElementById('dicebtn').onclick = ()=>{ if(!gameOver && !awaitingMove && players.length && !players[turn].ai){beginDiceShake();doRoll();} };
 
 cv.addEventListener('click', e=>{
   if(!awaitingMove) return;
@@ -422,7 +453,7 @@ function onlineLog(state,event){
 function playerCards(seats){
  const rail=document.getElementById('playerrail');if(!players.length&&!seats?.length){rail.innerHTML='';return;}
  const list=(seats||players).map((p,i)=>({name:p.name||p.color||('Player '+(i+1)),color:p.color||seatColors((seats||players).length)[i],online:p.online!==false,seat:p.seat??i}));
- rail.innerHTML=list.map((p,i)=>'<div class="player-card '+(i===turn&&!gameOver?'active ':'')+(p.online?'':'offline')+'" data-seat="'+p.seat+'" style="--pc:'+COLORS[p.color]+'"><div class="player-avatar">'+escapeHtml((p.name||'P')[0].toUpperCase())+'</div><div class="player-name">'+escapeHtml(p.name)+'<span class="player-turn">'+(gameOver?'Finished':i===turn?'Your move':'In the race')+'</span></div></div>').join('');
+ rail.innerHTML=list.map((p,i)=>'<div class="player-card '+(i===turn&&!gameOver?'active ':'')+(p.online?'':'offline')+'" data-seat="'+p.seat+'" data-color="'+p.color+'" style="--pc:'+COLORS[p.color]+'"><div class="player-avatar">'+escapeHtml((p.name||'P')[0].toUpperCase())+'</div><div class="player-name">'+escapeHtml(p.name)+'<span class="player-turn">'+(gameOver?'Finished':i===turn?'Your move':'In the race')+'</span></div></div>').join('');
 }
 function reactionOverAvatar(seat,emoji){
  const card=document.querySelector('.player-card[data-seat="'+seat+'"]');if(!card)return;
@@ -436,7 +467,7 @@ function applyRoom(room,event){
  lobbyNames=room.seats.map(x=>x.name);refreshLobby(room);
  if(!room.state){playerCards(room.seats);return;}
  const g=room.state;detectMoment(lastOnlineSnapshot,g,event);players=g.players.map(p=>({color:p.color,ai:false,done:p.done,name:p.name}));tokens=g.tokens;turn=g.turn;dice=g.dice;awaitingMove=g.awaiting;movableCache=g.awaiting?getMovable(players[turn].color,g.dice):[];gameOver=g.over;sixes=g.sixes;
- if(dice)setDiceFace(dice);else setDiceFace(1);
+ if(dice)finishDiceShake(dice);else if(!diceAwaitingResult)setDiceFace(1);
  document.getElementById('dicebtn').disabled=gameOver||NET.seat!==turn||awaitingMove;
  document.getElementById('setup').classList.add('hidden');document.getElementById('online').classList.add('hidden');document.getElementById('onlinetools').classList.remove('hidden');
  document.getElementById('rematch').classList.toggle('hidden',!gameOver);document.getElementById('rematchstatus').textContent=gameOver&&room.rematchVotes?room.rematchVotes+'/'+room.seats.length+' ready':'';
