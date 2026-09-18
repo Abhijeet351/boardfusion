@@ -33,7 +33,7 @@ const sockets=new Map(); // code -> Map<seat,ws>
 const publicRoom=r=>({code:r.code,seats:r.seats.map(({name,seat,online,muted})=>({name,seat,online,muted})),state:r.game,rematchVotes:r.rematch.size,resultId:r.resultId});
 const broadcastV2=(roomCode,m)=>{for(const ws of (sockets.get(roomCode)||new Map()).values())send(ws,m);};
 const lobbyV2=roomCode=>broadcastV2(roomCode,{t:'v2-lobby',room:publicRoom(v2.get(roomCode))});
-function bind(ws,roomCode,seat){if(ws.v2Code&&sockets.has(ws.v2Code))sockets.get(ws.v2Code).delete(ws.v2Seat);ws.v2Code=roomCode;ws.v2Seat=seat;if(!sockets.has(roomCode))sockets.set(roomCode,new Map());const old=sockets.get(roomCode).get(seat);if(old&&old!==ws)old.close(4001,'resumed elsewhere');sockets.get(roomCode).set(seat,ws);}
+function bind(ws,roomCode,seat){if(ws.v2Code&&sockets.has(ws.v2Code))sockets.get(ws.v2Code).delete(ws.v2Seat);ws.v2Code=roomCode;ws.v2Seat=seat;if(!sockets.has(roomCode))sockets.set(roomCode,new Map());const old=sockets.get(roomCode).get(seat);if(old&&old!==ws){send(old,{t:'v2-displaced'});old.close(4001,'resumed elsewhere');}sockets.get(roomCode).set(seat,ws);}
 function finishIfNeeded(room,event){if(event.resultId&&room.game?.over){const winner=room.seats[room.game.winner];verifiedResults.set(event.resultId,{userId:winner.authId||null,scored:false,at:Date.now()});}}
 setInterval(()=>{v2.reap();for(const c of sockets.keys())if(!v2.rooms.has(c))sockets.delete(c);const cutoff=Date.now()-86400000;for(const [id,x]of verifiedResults)if(x.at<cutoff)verifiedResults.delete(id);},30000).unref();
 wss.on('connection',ws=>{let roomCode=null;ws.on('message',async raw=>{let m;try{m=JSON.parse(raw)}catch(_){return;}try{
