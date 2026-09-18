@@ -15,6 +15,8 @@ const SUPABASE_PUBLIC='sb_publishable_gNJCTsEc246ssSYoG5LqzQ_Hb5bnTnl';
 const scoredEvents=new Map();
 const json=(res,code,data)=>{res.writeHead(code,{'Content-Type':'application/json'});res.end(JSON.stringify(data));};
 async function scoreResult(req,res){
+  // Disabled until the room server validates full game state; never trust a client-declared win.
+  if(process.env.VERIFIED_SCORING !== 'enabled') return json(res,503,{error:'verified scoring pending'});
   if(!process.env.SUPABASE_SECRET_KEY) return json(res,503,{error:'scoring unavailable'});
   let body='';for await(const chunk of req){body+=chunk;if(body.length>4096)return json(res,413,{error:'too large'});}
   let input;try{input=JSON.parse(body)}catch(_){return json(res,400,{error:'invalid json'});}
