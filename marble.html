@@ -71,6 +71,7 @@
   </div>
 </div>
 
+<script src="analytics.js"></script>
 <script src="gamify.js"></script>
 <script src="cloud.js"></script>
 <script>
@@ -157,7 +158,7 @@ function deal(){
 }
 document.getElementById('startbtn').onclick = ()=>{
   players = seats().map((c,i)=>({color:c, ai:seatSel[i]==='Computer'}));
-  BFGame.start('Marble Loop', players.map(p=>p.ai ? p.color+' CPU' : p.color.charAt(0).toUpperCase()+p.color.slice(1)));
+  BFGame.start('Marble Loop', players.map(p=>p.ai ? p.color+' CPU' : p.color.charAt(0).toUpperCase()+p.color.slice(1)));try{window.BFStats&&BFStats.start('marble',BFStats.localMode(players),{players:players.length})}catch(_){}
   marbles = {}; players.forEach(p=>marbles[p.color]=[-1,-1,-1,-1]);
   newDeck(); deal();
   turn = 0; gameOver = false; selCard = null; phase = 'pickCard'; split = null;
@@ -233,7 +234,7 @@ function checkWin(){
           gameOver = true;
           const winnerName=pcount===4?('Team '+TEAM(pl.color)):(pl.color.charAt(0).toUpperCase()+pl.color.slice(1));
           log('&#127942; '+(pcount===4?('Team '+TEAM(pl.color)) : pname(pl.color))+' WINS! Tap New Game');
-          BFGame.win(winnerName);
+          BFGame.win(winnerName);try{window.BFStats&&BFStats.end('marble',BFStats.localMode(players),{players:players.length})}catch(_){}
           render(); renderHand(); return true;
         }
       }
