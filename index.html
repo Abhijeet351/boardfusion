@@ -229,6 +229,7 @@
 </div>
 <script src="online-presentation.js"></script>
 <script src="net.js"></script>
+<script src="analytics.js"></script>
 <script src="gamify.js"></script>
 <script src="cloud.js"></script>
 <script>
@@ -353,7 +354,7 @@ renderPlayerList();
 document.getElementById('startbtn').onclick = ()=>{
   const seats = pcount===2 ? ['red','yellow'] : pcount===3 ? ['red','green','yellow'] : ORDER;
   players = seats.map((c,i)=>({color:c, ai:seatSel[i]==='Computer', done:false,name:nostalgia.names[i]||c}));
-  BFGame.start('Dice Race', players.map(p=>(p.name||p.color)+(p.ai?' CPU':'')));
+  BFGame.start('Dice Race', players.map(p=>(p.name||p.color)+(p.ai?' CPU':'')));try{window.BFStats&&BFStats.start('dice',BFStats.localMode(players),{players:players.length})}catch(_){}
   tokens = {}; players.forEach(p=>tokens[p.color]=[-1,-1,-1,-1]);
   turn = 0; dice = null; sixes = 0; gameOver = false; awaitingMove = false; turnReady=false;
   document.getElementById('setup').classList.add('hidden');
@@ -427,7 +428,7 @@ function completeTokenMove(color, idx){
   if(tokens[color].every(q=>q===56)){
     players[turn].done=true;gameOver=true;setTransition(false);updateDiceControl();
     log('&#127942; '+tname(color)+' WINS! Tap New Game to play again');
-    BFGame.win(((players[turn].name||color)+(players[turn].ai?' CPU':'')));showMoment('Ghar ki champion!');setTimeout(()=>showMemoryCard(players[turn].name||color),1250);
+    BFGame.win(((players[turn].name||color)+(players[turn].ai?' CPU':'')));try{window.BFStats&&BFStats.end('dice',BFStats.localMode(players),{players:players.length,cpu_won:!!players[turn].ai})}catch(_){}showMoment('Ghar ki champion!');setTimeout(()=>showMemoryCard(players[turn].name||color),1250);
     render();return;
   }
   render();
@@ -582,10 +583,13 @@ function reactionOverAvatar(seat,emoji){
 }
 function showMoment(text){const old=document.querySelector('.moment');if(old)old.remove();const el=document.createElement('div');el.className='moment '+(nostalgia.theme==='neon'?'':'victory-warm');el.innerHTML='<b>'+escapeHtml(text)+'</b>';document.body.appendChild(el);setTimeout(()=>el.remove(),1400)}
 function detectMoment(prev,g,event){if(!prev)return;if(g.over&&!prev.over){showMoment('Victory!');return}if(event!=='moved')return;let prevBase=0,nextBase=0,prevHome=0,nextHome=0;for(const p of g.players){(prev.tokens[p.color]||[]).forEach(x=>{if(x===-1)prevBase++;if(x===56)prevHome++});(g.tokens[p.color]||[]).forEach(x=>{if(x===-1)nextBase++;if(x===56)nextHome++})}if(nextHome>prevHome)showMoment('Home!');else if(nextBase>prevBase)showMoment('Captured!')}
+function bfOnlineKind(v){try{if(v)sessionStorage.setItem('bf_okind',v);return sessionStorage.getItem('bf_okind')||'online_private'}catch(_){return v||'online_private'}}
+function bfTrackOnline(prev,g,event,room){try{if(!window.BFStats||event==='resumed')return;const prevOver=prev?!!prev.over:null,mode=bfOnlineKind(),n=(g.players||[]).length;if(!g.over&&(prevOver===null||prevOver===true))BFStats.start('dice',mode,{players:n,rematch:prevOver===true});else if(g.over&&prevOver===false)BFStats.end('dice',mode,{players:n,won:NET.seat===g.winner})}catch(_){}}
+let bfQueueAt=0;function bfQueueEnd(reason){if(!bfQueueAt)return;const s=(Date.now()-bfQueueAt)/1000;bfQueueAt=0;try{window.BFStats&&BFStats.track('queue_end','dice','online_public',{reason,seconds:s})}catch(_){}}
 function applyRoomNow(room,event){
  lobbyNames=room.seats.map(x=>x.name);refreshLobby(room);
  if(!room.state){playerCards(room.seats);return;}
- const g=room.state;detectMoment(lastOnlineSnapshot,g,event);players=g.players.map(p=>({color:p.color,ai:false,done:p.done,name:p.name}));tokens=g.tokens;turn=g.turn;dice=g.dice;awaitingMove=g.awaiting;movableCache=g.awaiting?getMovable(players[turn].color,g.dice):[];gameOver=g.over;sixes=g.sixes;
+ const g=room.state;detectMoment(lastOnlineSnapshot,g,event);bfTrackOnline(lastOnlineSnapshot,g,event,room);players=g.players.map(p=>({color:p.color,ai:false,done:p.done,name:p.name}));tokens=g.tokens;turn=g.turn;dice=g.dice;awaitingMove=g.awaiting;movableCache=g.awaiting?getMovable(players[turn].color,g.dice):[];gameOver=g.over;sixes=g.sixes;
  if(dice)finishDiceShake(dice);else if(!diceAwaitingResult)setDiceFace(1);
  turnReady=!gameOver&&!awaitingMove;setTransition(false);updateDiceControl();
  document.getElementById('setup').classList.add('hidden');document.getElementById('online').classList.add('hidden');document.getElementById('onlinetools').classList.remove('hidden');document.querySelectorAll('.pass-overlay').forEach(x=>x.remove());
@@ -600,15 +604,15 @@ function defaultWsUrl(){if(location.protocol==='http:'||location.protocol==='htt
 document.getElementById('onlinebtn').onclick=()=>{const inp=document.getElementById('wsurl');if(!inp.value)inp.value=defaultWsUrl();document.getElementById('online').classList.remove('hidden');};
 document.getElementById('closeonline').onclick=()=>{if(NET.queueing)NET.cancelMatch();document.getElementById('online').classList.add('hidden');};
 async function ensureConn(){const url=document.getElementById('wsurl').value.trim()||defaultWsUrl();document.getElementById('onlineerr').textContent='';try{await NET.connect(url)}catch(e){document.getElementById('onlineerr').textContent='Could not reach the relay at '+url;throw e}}
-document.getElementById('createroom').onclick=async()=>{const n=document.getElementById('pname_in').value.trim()||'Host';try{await ensureConn();NET.create(n)}catch(_){}};
+document.getElementById('createroom').onclick=async()=>{const n=document.getElementById('pname_in').value.trim()||'Host';bfOnlineKind('online_private');try{await ensureConn();NET.create(n)}catch(_){}};
 document.getElementById('showprivate').onclick=()=>document.getElementById('privateform').classList.toggle('hidden');
 document.getElementById('findmatch').onclick=async()=>{const n=document.getElementById('pname_in').value.trim()||'Player';try{await ensureConn();NET.match(n)}catch(_){}};
 document.getElementById('cancelmatch').onclick=()=>NET.cancelMatch();
-document.getElementById('joinroom').onclick=async()=>{const n=document.getElementById('pname_in').value.trim()||'Guest',c=document.getElementById('roomcode').value.trim();if(!c){document.getElementById('onlineerr').textContent='Enter the room code';return}try{await ensureConn();NET.join(c,n)}catch(_){}};
-NET.on('v2-welcome',m=>{applyRoom(m.room);});NET.on('v2-match-queued',m=>{document.getElementById('connform').classList.add('hidden');document.getElementById('queueview').classList.remove('hidden');document.getElementById('queuenote').textContent=m.position>1?'Pairing now...':'You are first in line. The match starts automatically when another real player joins.';});NET.on('v2-match-found',m=>{document.getElementById('queueview').classList.add('hidden');applyRoom(m.room,'start');});NET.on('v2-match-cancelled',m=>{document.getElementById('queueview').classList.add('hidden');document.getElementById('connform').classList.remove('hidden');document.getElementById('onlineerr').textContent=m.reason||'Search cancelled';});NET.on('v2-match-timeout',m=>{document.getElementById('queueview').classList.add('hidden');document.getElementById('connform').classList.remove('hidden');document.getElementById('onlineerr').textContent=m.reason;});NET.on('v2-resumed',m=>applyRoom(m.room,'resumed'));NET.on('resumed',()=>document.getElementById('onlineerr').textContent='Seat resumed');NET.on('v2-lobby',m=>applyRoom(m.room));NET.on('v2-state',m=>applyRoom(m.room,m.event,m.roll));NET.on('v2-rematch',m=>{applyRoom(m.room,m.ready?'rematch':'vote');});
+document.getElementById('joinroom').onclick=async()=>{const n=document.getElementById('pname_in').value.trim()||'Guest',c=document.getElementById('roomcode').value.trim();if(!c){document.getElementById('onlineerr').textContent='Enter the room code';return}bfOnlineKind('online_private');try{await ensureConn();NET.join(c,n)}catch(_){}};
+NET.on('v2-welcome',m=>{applyRoom(m.room);});NET.on('v2-match-queued',m=>{if(!bfQueueAt){bfQueueAt=Date.now();try{window.BFStats&&BFStats.track('queue_start','dice','online_public')}catch(_){}}document.getElementById('connform').classList.add('hidden');document.getElementById('queueview').classList.remove('hidden');document.getElementById('queuenote').textContent=m.position>1?'Pairing now...':'You are first in line. The match starts automatically when another real player joins.';});NET.on('v2-match-found',m=>{bfOnlineKind('online_public');if(bfQueueAt){const s=(Date.now()-bfQueueAt)/1000;bfQueueAt=0;try{window.BFStats&&BFStats.track('match_found','dice','online_public',{seconds:s})}catch(_){}}document.getElementById('queueview').classList.add('hidden');applyRoom(m.room,'start');});NET.on('v2-match-cancelled',m=>{bfQueueEnd('cancelled');document.getElementById('queueview').classList.add('hidden');document.getElementById('connform').classList.remove('hidden');document.getElementById('onlineerr').textContent=m.reason||'Search cancelled';});NET.on('v2-match-timeout',m=>{bfQueueEnd('timeout');document.getElementById('queueview').classList.add('hidden');document.getElementById('connform').classList.remove('hidden');document.getElementById('onlineerr').textContent=m.reason;});NET.on('v2-resumed',m=>applyRoom(m.room,'resumed'));NET.on('resumed',()=>document.getElementById('onlineerr').textContent='Seat resumed');NET.on('v2-lobby',m=>applyRoom(m.room));NET.on('v2-state',m=>applyRoom(m.room,m.event,m.roll));NET.on('v2-rematch',m=>{applyRoom(m.room,m.ready?'rematch':'vote');});
 NET.on('v2-reaction',m=>{if(NET.muted)return;reactionOverAvatar(m.seat,m.emoji)});
-NET.on('v2-displaced',m=>{document.getElementById('queueview').classList.add('hidden');document.getElementById('connform').classList.remove('hidden');document.getElementById('onlineerr').textContent=m.reason||'Continued in another tab';});
-NET.on('error',m=>{document.getElementById('onlineerr').textContent=m.reason||'Room error';if(NET.room)log('&#9888; '+escapeHtml(m.reason||'Room error'));});NET.on('closed',m=>{if(NET.room)log('Connection lost - resuming seat...');else if(m.wasQueueing){document.getElementById('queueview').classList.add('hidden');document.getElementById('connform').classList.remove('hidden');document.getElementById('onlineerr').textContent='Connection lost. Start the search again.';}});
+NET.on('v2-displaced',m=>{bfQueueEnd('other_tab');document.getElementById('queueview').classList.add('hidden');document.getElementById('connform').classList.remove('hidden');document.getElementById('onlineerr').textContent=m.reason||'Continued in another tab';});
+NET.on('error',m=>{document.getElementById('onlineerr').textContent=m.reason||'Room error';if(NET.room)log('&#9888; '+escapeHtml(m.reason||'Room error'));});NET.on('closed',m=>{if(NET.room)log('Connection lost - resuming seat...');else if(m.wasQueueing){bfQueueEnd('connection_lost');document.getElementById('queueview').classList.add('hidden');document.getElementById('connform').classList.remove('hidden');document.getElementById('onlineerr').textContent='Connection lost. Start the search again.';}});
 document.getElementById('startonline').onclick=()=>{if(lobbyNames.length<2){document.getElementById('onlineerr').textContent='Need at least 2 players';return}BFGame.start('Dice Race Online',lobbyNames);NET.start();};
 document.querySelectorAll('[data-react]').forEach(b=>b.onclick=()=>NET.react(b.dataset.react));document.getElementById('mutereactions').onclick=()=>{NET.mute(!NET.muted);document.getElementById('mutereactions').textContent=!NET.muted?'Mute reactions':'Unmute reactions'};document.getElementById('rematch').onclick=()=>NET.rematch();
 if(location.hash==='#online')document.getElementById('online').classList.remove('hidden');
