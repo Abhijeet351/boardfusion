@@ -112,3 +112,9 @@ are discarded rather than played for the partner. Both are noted for the next pa
 Dice Race includes a subtle loop of **“Happy Vibes” by Ruskerdax**, sourced from
 https://opengameart.org/content/happy-vibes and dedicated to the public domain under CC0 1.0.
 The exact license and redistribution notes are in [`MUSIC-LICENSE.md`](MUSIC-LICENSE.md).
+
+## Usage analytics
+
+- `analytics.js` sends a few anonymous events (visit, game start/finish with game and mode, public queue search/match/give-up) straight to the existing Supabase project. No cookies, no names or emails; a random browser ID in localStorage makes return visits countable. Bots, localhost, and opted-out devices are skipped, and it goes quiet by itself if the table is missing.
+- `analytics-setup.sql` - paste once into the Supabase SQL editor. Creates the insert-only `bf_events` table, a private stats key, and the `bf_stats` function. Safe to re-run.
+- `/stats.html` - owner stats page (needs the stats key from the SQL result). It also has a "Don't count this device" switch. Opening any page with `?notrack` does the same.
