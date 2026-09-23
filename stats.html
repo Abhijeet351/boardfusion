@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex,nofollow">
+<title>BoardFusion stats</title>
+<style>
+ :root{--wood:#7a3f22;--cream:#fff4dc;--ink:#3b2416;--muted:#8a6a52;--card:#fffaf0;--line:rgba(87,44,23,.16);--accent:#e07a2e;--good:#2f8f5b}
+ *{box-sizing:border-box}
+ body{margin:0;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;background:radial-gradient(circle at 20% 0,#ffe7b8,#f6d6a0 40%,#e9bf86);color:var(--ink);min-height:100vh}
+ .wrap{max-width:880px;margin:0 auto;padding:22px 16px 60px}
+ header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+ h1{margin:0;font-size:24px;letter-spacing:.3px}h1 span{color:var(--accent)}
+ .sub{color:var(--muted);font-size:13px;margin:4px 0 0}
+ .range{display:flex;gap:6px}.range button,.btn{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:8px 12px;font-weight:700;cursor:pointer;font-size:14px}
+ .range button.sel,.btn.primary{background:linear-gradient(135deg,#c85e2b,#f1b64b);color:#fff;border-color:transparent}
+ .panel{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-top:14px;box-shadow:0 6px 18px rgba(87,44,23,.10)}
+ .panel h2{margin:0 0 10px;font-size:15px;text-transform:uppercase;letter-spacing:1px;color:var(--wood)}
+ .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+ .stat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px}
+ .stat b{display:block;font-size:28px;line-height:1.1}.stat small{color:var(--muted);font-size:12px}
+ table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--line)}th{color:var(--muted);font-weight:700;font-size:12px}td.n,th.n{text-align:right}
+ .bars{display:flex;align-items:flex-end;gap:3px;height:120px;padding-top:6px}
+ .bar{flex:1;min-width:4px;background:linear-gradient(#f1b64b,#c85e2b);border-radius:4px 4px 0 0;position:relative}
+ .bar.zero{background:rgba(87,44,23,.12);height:2px!important}
+ .axis{display:flex;justify-content:space-between;color:var(--muted);font-size:11px;margin-top:4px}
+ input[type=password],input[type=text]{width:100%;padding:11px;border-radius:10px;border:1px solid var(--line);font-size:15px;background:#fff}
+ .row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center}
+ .err{color:#b3261e;font-weight:600;margin-top:8px}.ok{color:var(--good);font-weight:600}
+ .note{color:var(--muted);font-size:12px;line-height:1.5}
+ .hidden{display:none}
+ label.opt{display:flex;gap:8px;align-items:center;font-size:14px;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="wrap">
+ <header>
+  <div><h1>Board<span>Fusion</span> stats</h1><p class="sub" id="asof">Private numbers for the game owner</p></div>
+  <div class="range hidden" id="range"><button data-days="7">7 days</button><button data-days="30" class="sel">30 days</button><button data-days="90">90 days</button></div>
+ </header>
+
+ <div class="panel" id="login">
+  <h2>Stats key</h2>
+  <p class="note">Paste the key shown at the end of the setup script in Supabase. It is saved on this device only.</p>
+  <input id="key" type="password" autocomplete="off" placeholder="32-character stats key" aria-label="Stats key">
+  <div class="row"><button class="btn primary" id="go">Show stats</button></div>
+  <p class="err" id="err" role="alert"></p>
+ </div>
+
+ <div id="out" class="hidden">
+  <div class="panel"><h2>People</h2><div class="grid" id="people"></div></div>
+  <div class="panel"><h2>Games</h2><div class="grid" id="games"></div>
+   <table style="margin-top:12px"><thead><tr><th>Game</th><th>Mode</th><th class="n">Started</th><th class="n">Finished</th><th class="n">Players</th></tr></thead><tbody id="gm"></tbody></table></div>
+  <div class="panel"><h2>Visitors per day</h2><div class="bars" id="bars"></div><div class="axis"><span id="ax0"></span><span id="ax1"></span></div></div>
+  <div class="panel"><h2>Online matchmaking</h2><div class="grid" id="queue"></div></div>
+  <div class="panel"><h2>Where visitors came from</h2><table><tbody id="refs"></tbody></table>
+   <p class="note">"Direct" includes WhatsApp and most app links, which hide where they came from. Add ?utm_source=reddit (or instagram, whatsapp) to links you post to tell them apart.</p></div>
+  <div class="panel"><h2>Devices</h2><div class="grid" id="dev"></div></div>
+  <div class="panel"><h2>This device</h2>
+   <label class="opt"><input type="checkbox" id="notrack"> Don't count this device in the stats (use this on your own phone and laptop)</label>
+   <div class="row"><button class="btn" id="forget">Forget stats key on this device</button><span id="saved" class="ok"></span></div>
+   <p class="note">What is counted: page visits, games started and finished (game and mode), and public queue searches. Each browser gets a random ID so return visits can be counted. No names, emails, or chat are stored in these stats. A "visitor" is one browser, so one person on two devices counts twice.</p>
+  </div>
+ </div>
+</div>
+<script src="analytics.js"></script>
+<script>
+(function(){
+ const URL='https://shvwglpfpuogwadvspvz.supabase.co',PUB='sb_publishable_gNJCTsEc246ssSYoG5LqzQ_Hb5bnTnl';
+ let days=30,busy=false;const $=id=>document.getElementById(id);
+ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const pct=(a,b)=>b?Math.round(100*a/b)+'%':'-';
+ const stat=(n,label)=>'<div class="stat"><b>'+esc(n)+'</b><small>'+esc(label)+'</small></div>';
+ const NAMES={dice:'Dice Race',marble:'Marble Loop'},MODES={local:'Pass and play',computer:'Vs computer',online_public:'Online - public queue',online_private:'Online - private room'};
+ function getKey(){try{return localStorage.getItem('bf_stats_key')||''}catch(_){return ''}}
+ function setKey(k){try{k?localStorage.setItem('bf_stats_key',k):localStorage.removeItem('bf_stats_key')}catch(_){}}
+ async function load(){
+  const key=($('key').value||getKey()).trim();if(busy)return;
+  if(!/^[a-f0-9]{32}$/i.test(key)){$('err').textContent='That does not look like a stats key. It is 32 letters and numbers from the setup script.';return}
+  busy=true;$('go').disabled=true;$('err').textContent='Loading...';
+  try{
+   const r=await fetch((window.BF_STATS_ENDPOINT||URL)+'/rest/v1/rpc/bf_stats',{method:'POST',headers:{apikey:PUB,'Content-Type':'application/json'},body:JSON.stringify({p_key:key,p_days:days})});
+   const t=await r.text();let d;try{d=JSON.parse(t)}catch(_){d=t}
+   if(!r.ok){const msg=(d&&d.message)||'';if(/not allowed/.test(msg)){setKey('');throw Error('Wrong stats key. Copy it again from the setup script result.')}if(r.status===404||/function|schema cache/i.test(msg))throw Error('Stats are not set up yet. Run the setup SQL in Supabase first.');throw Error('Could not load stats ('+r.status+'). Try again in a minute.')}
+   setKey(key);render(d);$('login').classList.add('hidden');$('out').classList.remove('hidden');$('range').classList.remove('hidden');$('err').textContent='';
+  }catch(e){$('err').textContent=e.message==='Failed to fetch'?'No connection to Supabase. Check your internet and try again.':e.message}
+  finally{busy=false;$('go').disabled=false}
+ }
+ function render(d){
+  const t=d.totals||{},q=d.retention||{};
+  $('asof').textContent='Last '+days+' days, India time. Updated '+new Date(d.generated_at||Date.now()).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'});
+  $('people').innerHTML=stat(t.visitors||0,'visitors (browsers)')+stat(t.new_visitors||0,'new visitors')+stat(t.returning_visitors||0,'came back on another day')+stat(pct(q.came_back_day1,q.eligible_day1),'back the next day ('+(q.came_back_day1||0)+' of '+(q.eligible_day1||0)+')')+stat(pct(q.came_back_week,q.eligible_week),'back within a week ('+(q.came_back_week||0)+' of '+(q.eligible_week||0)+')');
+  $('games').innerHTML=stat(t.players||0,'visitors who started a game')+stat(t.games_started||0,'games started')+stat(t.games_finished||0,'games finished')+stat(pct(t.games_finished,t.games_started),'finish rate');
+  const gm=d.by_game_mode||[];$('gm').innerHTML=gm.length?gm.map(x=>'<tr><td>'+esc(NAMES[x.game]||x.game||'-')+'</td><td>'+esc(MODES[x.mode]||x.mode||'-')+'</td><td class="n">'+x.started+'</td><td class="n">'+x.finished+'</td><td class="n">'+x.players+'</td></tr>').join(''):'<tr><td colspan="5" class="note">No games yet in this range.</td></tr>';
+  const byDay={};(d.daily||[]).forEach(x=>byDay[x.day]=x);const list=[];const end=new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Kolkata'}));
+  for(let i=days-1;i>=0;i--){const dt=new Date(end);dt.setDate(end.getDate()-i);const k=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');list.push({k,v:(byDay[k]||{}).visitors||0,s:(byDay[k]||{}).started||0})}
+  const max=Math.max(1,...list.map(x=>x.v));$('bars').innerHTML=list.map(x=>'<div class="bar'+(x.v?'':' zero')+'" style="height:'+Math.round(100*x.v/max)+'%" title="'+x.k+': '+x.v+' visitors, '+x.s+' games"></div>').join('');
+  $('ax0').textContent=list[0].k;$('ax1').textContent='today · peak '+max;
+  $('queue').innerHTML=stat(t.queue_searches||0,'searches for an online player')+stat(t.queue_matched||0,'found a match')+stat(t.queue_gave_up||0,'gave up or timed out')+stat(pct(t.queue_matched,t.queue_searches),'match rate');
+  const refs=d.referrers||[];$('refs').innerHTML=refs.length?refs.map(x=>'<tr><td>'+esc(x.source)+'</td><td class="n">'+x.visits+(x.visits===1?' visit':' visits')+'</td></tr>').join(''):'<tr><td class="note">No visits yet.</td></tr>';
+  const dv=d.devices||{};$('dev').innerHTML=Object.keys(dv).length?Object.entries(dv).map(([k,v])=>stat(v,k)).join(''):stat(0,'no data yet');
+ }
+ $('go').onclick=load;$('key').addEventListener('keydown',e=>{if(e.key==='Enter')load()});
+ document.querySelectorAll('#range button').forEach(b=>b.onclick=()=>{days=+b.dataset.days;document.querySelectorAll('#range button').forEach(x=>x.classList.toggle('sel',x===b));load()});
+ $('notrack').checked=!!(window.BFStats&&BFStats.optedOut);$('notrack').onchange=e=>{window.BFStats&&BFStats.optOut(e.target.checked);$('saved').textContent=e.target.checked?'This device is no longer counted.':'This device is counted again.'};
+ $('forget').onclick=()=>{setKey('');$('key').value='';$('out').classList.add('hidden');$('range').classList.add('hidden');$('login').classList.remove('hidden')};
+ if(getKey())load();
+})();
+</script>
+</body>
+</html>
