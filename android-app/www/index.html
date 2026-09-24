@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="color-scheme" content="dark">
+<title>BoardFusion</title>
+<style>
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 30% 10%,#1e3a5f,#0f172a 55%);color:#e2e8f0;font-family:-apple-system,"Segoe UI",Roboto,sans-serif;text-align:center;-webkit-tap-highlight-color:transparent;user-select:none}
+main{width:100%;max-width:420px}
+.logo{font-size:34px;font-weight:900;letter-spacing:.3px}
+.logo span{color:#38bdf8}
+.tag{margin-top:4px;color:#94a3b8;font-size:14px}
+.die{width:74px;height:74px;margin:34px auto 26px;border-radius:18px;background:#f8fafc;box-shadow:0 0 0 3px #38bdf8,0 0 28px rgba(56,189,248,.55);display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);padding:12px;animation:tumble 1.6s ease-in-out infinite}
+.die i{width:12px;height:12px;border-radius:50%;background:#0f172a;place-self:center}
+.die i:nth-child(1){grid-area:1/1}.die i:nth-child(2){grid-area:1/3}.die i:nth-child(3){grid-area:2/2;background:#f472b6}.die i:nth-child(4){grid-area:3/1}.die i:nth-child(5){grid-area:3/3}
+@keyframes tumble{0%{transform:rotate(-12deg) translateY(0)}35%{transform:rotate(18deg) translateY(-12px)}70%{transform:rotate(-4deg) translateY(0)}100%{transform:rotate(-12deg) translateY(0)}}
+.calm .die{animation:none;transform:rotate(-12deg)}
+h1{font-size:20px;margin:0 0 8px;min-height:26px}
+p{margin:0;color:#94a3b8;line-height:1.55;font-size:15px;min-height:48px}
+.bar{height:6px;border-radius:99px;background:#1e293b;overflow:hidden;margin:22px auto 0;max-width:260px;visibility:hidden}
+.bar b{display:block;height:100%;width:0;background:linear-gradient(90deg,#38bdf8,#f472b6);border-radius:99px;transition:width .8s linear}
+.show-bar .bar{visibility:visible}
+button{margin-top:24px;min-width:170px;min-height:48px;padding:12px 22px;border:0;border-radius:14px;background:#38bdf8;color:#0f172a;font-size:16px;font-weight:800;cursor:pointer;visibility:hidden}
+button:focus-visible{outline:3px solid #facc15;outline-offset:3px}
+.show-btn button{visibility:visible}
+@media (prefers-reduced-motion:reduce){.die{animation:none;transform:rotate(-12deg)}}
+</style>
+</head>
+<body>
+<main id="app" aria-live="polite">
+  <div class="logo">Board<span>Fusion</span></div>
+  <div class="tag">Dice Race &amp; Marble Loop</div>
+  <div class="die" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+  <h1 id="title">Loading&hellip;</h1>
+  <p id="msg"></p>
+  <div class="bar" aria-hidden="true"><b id="fill"></b></div>
+  <button id="retry" type="button">Try again</button>
+</main>
+<script>
+(function(){
+  'use strict';
+  var ORIGIN = 'https://boardfusion.onrender.com';
+  var GAME = ORIGIN + '/?utm_source=android_app';
+  var app = document.getElementById('app'), title = document.getElementById('title'),
+      msg = document.getElementById('msg'), fill = document.getElementById('fill'),
+      retry = document.getElementById('retry');
+  var reason = (location.search.match(/[?&]reason=(\w+)/) || [])[1] || '';
+  var started = Date.now(), timer = null, ticker = null, busy = false, leaving = false, state = '';
+  window.BF_LAUNCHER = { state: function(){ return state; }, probe: 'none', attempts: 0 };
+
+  function show(s, t, m, opts){
+    state = s; opts = opts || {};
+    title.textContent = t; msg.textContent = m || '';
+    app.classList.toggle('show-bar', !!opts.bar);
+    app.classList.toggle('show-btn', !!opts.button);
+    app.classList.toggle('calm', !!opts.calm);
+  }
+  function progress(){
+    var s = (Date.now() - started) / 1000;
+    // Fills to about 90% over a minute, never claims 100% before the game is ready.
+    fill.style.width = Math.min(92, 100 * (1 - Math.exp(-s / 28))) + '%';
+  }
+
+  // Native HTTP (no CORS, real status code) when the app bridge is present;
+  // otherwise a no-cors fetch that only tells us "the server answered".
+  function request(path, ms){
+    var url = ORIGIN + path + (path.indexOf('?') < 0 ? '?' : '&') + 't=' + Date.now();
+    var cap = window.Capacitor, http = cap && cap.Plugins && cap.Plugins.CapacitorHttp;
+    var p;
+    if (http && http.request) {
+      window.BF_LAUNCHER.probe = 'native';
+      p = http.request({ url: url, method: 'GET', connectTimeout: ms, readTimeout: ms, responseType: 'text',
+                         headers: { 'Accept': 'application/json', 'Cache-Control': 'no-cache' } })
+        .then(function(r){ return { status: r.status, body: typeof r.data === 'string' ? r.data : JSON.stringify(r.data || '') }; });
+    } else {
+      window.BF_LAUNCHER.probe = 'fetch';
+      p = fetch(url, { mode: 'no-cors', cache: 'no-store' }).then(function(){ return { status: 0, body: '' }; });
+    }
+    return Promise.race([p, new Promise(function(_, rej){ setTimeout(function(){ rej(new Error('timeout')); }, ms + 2000); })]);
+  }
+
+  function go(){
+    if (leaving) return;
+    leaving = true;
+    show('opening', 'Opening the game\u2026', '', { calm: false });
+    fill.style.width = '100%';
+    location.replace(GAME);
+  }
+
+  function schedule(ms){ clearTimeout(timer); timer = setTimeout(check, ms); }
+
+  function check(){
+    if (busy || leaving) return;
+    if (navigator.onLine === false) { offline(); return; }
+    busy = true;
+    window.BF_LAUNCHER.attempts++;
+    var t0 = Date.now();
+    request('/healthz', 30000).then(function(r){
+      busy = false;
+      var healthy = r.status === 0 || (r.status === 200 && /"ok"\s*:\s*true/.test(r.body));
+      if (!healthy) { waking(); schedule(4000); return; }
+      if (r.status === 0) { go(); return; }
+      // Server is up. Make sure the game page itself is open (not in maintenance).
+      return request('/', 30000).then(function(page){
+        if (page.status === 200) { go(); return; }
+        if (page.status === 503) {
+          show('maintenance', 'Back very soon', 'BoardFusion is getting an upgrade right now. The game will open by itself as soon as it\u2019s back.', { button: true, calm: true });
+          schedule(30000); return;
+        }
+        waking(); schedule(5000);
+      });
+    }).catch(function(){
+      busy = false;
+      if (navigator.onLine === false) { offline(); return; }
+      // A fast failure means we couldn't reach it at all; a slow one means it's still waking.
+      if (Date.now() - t0 < 4000) {
+        show('unreachable', 'Can\u2019t reach the game', 'Check your internet connection. We\u2019ll keep trying.', { button: true, calm: true });
+        schedule(5000);
+      } else { waking(); schedule(1500); }
+    });
+  }
+
+  function waking(){
+    var s = (Date.now() - started) / 1000;
+    if (s > 80) show('slow', 'Still waking up\u2026', 'This is taking longer than usual. We\u2019re still trying, or tap Try again.', { bar: true, button: true });
+    else show('waking', 'Waking up the game server\u2026', 'It naps when nobody\u2019s playing. The first start can take up to a minute.', { bar: true });
+  }
+
+  function offline(){
+    clearTimeout(timer);
+    show('offline', 'You\u2019re offline', 'BoardFusion needs an internet connection. The game will open by itself when you\u2019re back online.', { button: true, calm: true });
+    schedule(5000);
+  }
+
+  retry.addEventListener('click', function(){
+    started = Date.now();
+    fill.style.width = '0';
+    show('loading', 'Loading\u2026', '', {});
+    clearTimeout(timer);
+    busy = false;
+    check();
+  });
+  window.addEventListener('online', function(){ if (!leaving) { clearTimeout(timer); check(); } });
+  window.addEventListener('offline', function(){ if (!leaving && !busy) offline(); });
+  document.addEventListener('visibilitychange', function(){ if (!document.hidden && !leaving && !busy) { clearTimeout(timer); check(); } });
+
+  // Only show the "waking" text if the check takes a moment; a warm server opens straight away.
+  setTimeout(function(){ if (!leaving && (state === '' || state === 'loading')) waking(); }, 2500);
+  ticker = setInterval(progress, 1000);
+  if (reason === 'offline') show('reconnecting', 'Reconnecting\u2026', 'The connection dropped. We\u2019ll reopen the game as soon as it\u2019s back.', { calm: true });
+  check();
+})();
+</script>
+</body>
+</html>
