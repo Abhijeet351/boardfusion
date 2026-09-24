@@ -39,6 +39,8 @@
   #startbtn { width:100%; padding:14px; border:none; border-radius:12px; background:var(--accent); color:#0f172a; font-size:17px; font-weight:800; cursor:pointer; margin-top:6px; }
   .note { font-size:12.5px; color:#94a3b8; margin-top:12px; line-height:1.5; }
   .hidden { display:none !important; }
+  .sr-only{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+  button:focus-visible,canvas:focus-visible{outline:3px solid #7dd3fc;outline-offset:3px}
 </style>
 </head>
 <body>
@@ -47,8 +49,8 @@
   <button class="tab" id="tab-ludo">Dice Race</button>
   <button class="tab active">Marble Loop</button>
 </div>
-<div id="statusbar">Set up a game to begin</div>
-<div id="boardwrap"><canvas id="board" width="600" height="600"></canvas></div>
+<div id="statusbar" role="status" aria-live="polite" aria-atomic="true">Set up a game to begin</div><div id="kbstatus" class="sr-only" aria-live="assertive" aria-atomic="true"></div>
+<div id="boardwrap"><canvas id="board" width="600" height="600" tabindex="0" aria-label="Marble Loop board. Pick a card, then use the arrow keys to choose a glowing marble and Enter to play it. Escape puts the card back." aria-describedby="kbstatus"></canvas></div>
 <div id="hand"></div>
 <div id="controls">
   <span id="steps"></span>
@@ -114,6 +116,7 @@ let selCard = null;     // index into current hand
 let phase = 'idle';     // idle|pickCard|pickMarble|pickSwap|pickSteps|pickSecond
 let legal = [];         // legal marble indices for current selection
 let split = null;       // {first, remaining}
+let kbMode=false,kbPick=null,kbArmAt=0,drawnMarbles={}; // keyboard marble selection
 const log = m => { document.getElementById('statusbar').innerHTML = m; };
 const chip = c => '<span class="chip" style="background:'+COLORS[c]+'"></span>';
 const pname = c => chip(c)+c.charAt(0).toUpperCase()+c.slice(1);
@@ -143,7 +146,7 @@ document.getElementById('pcount').addEventListener('click', e=>{
 renderPlayerList();
 document.getElementById('tab-ludo').onclick = ()=>{ location.href='index.html'; };
 document.getElementById('newgame').onclick = ()=>document.getElementById('setup').classList.remove('hidden');
-document.getElementById('howto').onclick = ()=>alert('Marble Loop rules:\n\n- Each turn, tap a card, then a glowing marble.\n- A or K: bring a marble out of base (A also moves 1, K also moves 13).\n- Number cards move forward; 4 moves backward 4; Q moves 12.\n- 7: split between two marbles - tap a marble, pick steps, tap the next marble (or Skip rest).\n- J: swap one of your marbles on the loop with any other marble on the loop.\n- Landing on an opponent sends them back to base. Start cells are safe.\n- Move up your colored lane; the last step needs an exact count.\n- 4-player games are 2v2: your team wins when both partners are home.');
+document.getElementById('howto').onclick = ()=>alert('Marble Loop rules:\n\n- Each turn, tap a card, then a glowing marble.\n- Keyboard: Tab to a card and press Enter, then arrow keys choose a marble and Enter plays it (Escape puts the card back).\n- A or K: bring a marble out of base (A also moves 1, K also moves 13).\n- Number cards move forward; 4 moves backward 4; Q moves 12.\n- 7: split between two marbles - tap a marble, pick steps, tap the next marble (or Skip rest).\n- J: swap one of your marbles on the loop with any other marble on the loop.\n- Landing on an opponent sends them back to base. Start cells are safe.\n- Move up your colored lane; the last step needs an exact count.\n- 4-player games are 2v2: your team wins when both partners are home.');
 
 function newDeck(){
   const ranks = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
@@ -251,7 +254,7 @@ function endTurn(){
   if(players.every(p=>hands[p.color].length===0)) deal();
   turn = (turn+1)%players.length;
   log(pname(cur().color)+' - pick a card');
-  render(); renderHand(); maybeAI();
+  render(); renderHand(); kbFocusHand(); maybeAI();
 }
 
 // ---------- UI: hand ----------
@@ -287,11 +290,11 @@ function pickCard(ci){
   if(legal.length===0){
     log('That card has no legal move - pick another, or discard');
     document.getElementById('discardbtn').classList.remove('hidden');
-    phase = 'pickCard'; renderHand(); render(); return;
+    phase = 'pickCard'; renderHand(); render(); if(kbMode){const b=document.querySelectorAll('#hand .cardbtn')[ci];if(b)b.focus();kbSay('That card has no legal move. Pick another card, or use No moves - discard.')} return;
   }
   phase = 'pickMarble';
   log(pname(color)+' played '+cardLabel(card)+' - tap a glowing marble');
-  renderHand(); render();
+  renderHand(); render(); kbBeginChoice();
 }
 document.getElementById('discardbtn').onclick = ()=>{
   const color = cur().color;
@@ -307,7 +310,7 @@ document.getElementById('skipbtn').onclick = ()=>{
 };
 
 cv.addEventListener('click', e=>{
-  if(gameOver || cur().ai || !phase) return;
+  if(gameOver || !cur() || cur().ai || !phase) return;
   const r = cv.getBoundingClientRect();
   const x = (e.clientX-r.left)*600/r.width, y = (e.clientY-r.top)*600/r.height;
   const color = cur().color;
@@ -322,12 +325,29 @@ cv.addEventListener('click', e=>{
   if(phase==='pickMarble' && card){
     const m = hit(legal.map(i=>({color,idx:i})), ()=>true);
     if(!m) return;
-    playOn(color, m.idx, card);
+    kbPlay(m);
   } else if(phase==='pickSwap'){
     const targets = [];
     for(const pl of players) marbles[pl.color].forEach((p,i)=>{ if(p>=0&&p<=39 && !(pl.color===color&&i===split.first)) targets.push({color:pl.color,idx:i}); });
     const m = hit(targets, ()=>true);
     if(!m) return;
+    kbPlay(m);
+  } else if(phase==='pickSecond'){
+    const m = hit(legal.map(i=>({color,idx:i})), mm=>mm.idx!==split.first);
+    if(!m) return;
+    kbPlay(m);
+  }
+});
+// Shared by tap/click and keyboard: play the chosen marble for the current phase.
+function kbPlay(m){
+  if(gameOver || !cur() || cur().ai) return;
+  const color = cur().color;
+  const card = selCard!==null ? hands[color][selCard] : null;
+  if(phase==='pickMarble' && card){
+    if(m.color!==color || !legal.includes(m.idx)) return;
+    playOn(color, m.idx, card);
+  } else if(phase==='pickSwap' && split){
+    if(!(marbles[m.color][m.idx]>=0 && marbles[m.color][m.idx]<=39) || (m.color===color && m.idx===split.first)) return;
     const a = marbles[color][split.first];
     marbles[color][split.first] = marbles[m.color][m.idx];
     marbles[m.color][m.idx] = a;
@@ -335,14 +355,63 @@ cv.addEventListener('click', e=>{
     log(pname(color)+' swaps with '+pname(m.color));
     split=null;
     if(!checkWin()) endTurn(); else render();
-  } else if(phase==='pickSecond'){
-    const m = hit(legal.map(i=>({color,idx:i})), mm=>mm.idx!==split.first);
-    if(!m) return;
+  } else if(phase==='pickSecond' && split){
+    if(m.color!==color || !legal.includes(m.idx) || m.idx===split.first) return;
     const msg = applyForward(color, m.idx, split.remaining);
     hands[color].splice(selCard,1);
     log(msg);
     split=null; document.getElementById('skipbtn').classList.add('hidden');
     if(!checkWin()) endTurn(); else render();
+  }
+}
+
+// ---------- Keyboard marble selection ----------
+// Cards and step buttons are normal buttons. After a card is chosen with the keyboard,
+// focus moves to the board: arrow keys (or Home/End) cycle the glowing marbles,
+// Enter/Space plays the ringed one, Escape puts the card back. Tab is never captured.
+document.addEventListener('keydown',e=>{if(e.key==='Tab'||e.key==='Enter'||e.key===' '||e.key.startsWith('Arrow'))kbMode=true},true);
+document.addEventListener('pointerdown',()=>{if(kbMode){kbMode=false;render()}},true);
+function kbTargets(){
+  if(gameOver||!cur()||cur().ai)return[];
+  const color=cur().color;
+  if(phase==='pickMarble'&&selCard!==null)return legal.slice().sort((a,b)=>a-b).map(i=>({color,idx:i}));
+  if(phase==='pickSecond'&&split)return legal.filter(i=>i!==split.first).sort((a,b)=>a-b).map(i=>({color,idx:i}));
+  if(phase==='pickSwap'&&split){const t=[];for(const pl of players)marbles[pl.color].forEach((p,i)=>{if(p>=0&&p<=39&&!(pl.color===color&&i===split.first))t.push({color:pl.color,idx:i})});return t}
+  return[];
+}
+const kbSame=(a,b)=>!!a&&!!b&&a.color===b.color&&a.idx===b.idx;
+function kbSay(m){const el=document.getElementById('kbstatus');if(!el)return;el.textContent='';setTimeout(()=>{el.textContent=m},40)}
+function kbName(c){return c.charAt(0).toUpperCase()+c.slice(1)}
+function kbDescribe(m){const p=marbles[m.color][m.idx];const who=m.color===cur().color?'Your marble '+(m.idx+1):kbName(m.color)+' marble '+(m.idx+1);return who+', '+(p===-1?'in base':p>=44?'home':p>=40?'in the home lane':(44-p)+' steps from home')}
+function kbIdleHint(){if(!players.length||phase==='idle')return 'Set up a game to begin.';if(gameOver)return 'Game over. Start a new game.';if(cur().ai)return 'Computer is playing.';if(phase==='pickSteps')return 'Choose how many steps with the number buttons.';if(phase==='pickCard')return 'Pick a card first.';return 'Please wait.'}
+function kbFocusChoice(announce){const t=kbTargets();if(!t.length){kbPick=null;return}if(!t.some(m=>kbSame(m,kbPick)))kbPick=t[0];render();if(announce){const verb=phase==='pickSwap'?'swap with':'move';kbSay(kbDescribe(kbPick)+'. Choice '+(t.findIndex(m=>kbSame(m,kbPick))+1)+' of '+t.length+'. Arrow keys to change, Enter to '+verb+'.')}}
+function kbBeginChoice(){if(!kbMode||!kbTargets().length)return;const a=document.activeElement;if(a&&a!==cv&&a!==document.body&&!a.closest('#hand,#steps'))return;kbPick=null;kbArmAt=Date.now()+350;if(a!==cv)cv.focus();else kbFocusChoice(true)}
+function kbFocusHand(){if(!kbMode||gameOver||!cur()||cur().ai)return;kbArmAt=Date.now()+700;const who=turn;setTimeout(()=>{if(!kbMode||gameOver||turn!==who||!cur()||cur().ai||phase!=='pickCard'||!document.getElementById('setup').classList.contains('hidden'))return;const a=document.activeElement;if(a&&a!==cv&&a!==document.body)return;const b=document.querySelector('#hand .cardbtn');if(b){b.focus();kbSay(kbName(cur().color)+"'s turn. Pick a card.")}},700)}
+function kbDrawFocus(){if(!kbMode||document.activeElement!==cv||!kbPick)return;if(!kbTargets().some(m=>kbSame(m,kbPick)))return;const d=drawnMarbles[kbPick.color+kbPick.idx];if(!d)return;const R=d.r+11;ctx.save();ctx.setLineDash([]);ctx.lineWidth=7;ctx.strokeStyle='rgba(15,23,42,.85)';ctx.beginPath();ctx.arc(d.x,d.y,R,0,7);ctx.stroke();ctx.lineWidth=3.5;ctx.strokeStyle='#facc15';ctx.setLineDash([7,4]);ctx.beginPath();ctx.arc(d.x,d.y,R,0,7);ctx.stroke();ctx.setLineDash([]);const up=d.y-R-16>=0,ty=up?d.y-R-3:d.y+R+3,tb=up?ty-13:ty+13;ctx.beginPath();ctx.moveTo(d.x,ty);ctx.lineTo(d.x-8,tb);ctx.lineTo(d.x+8,tb);ctx.closePath();ctx.fillStyle='#facc15';ctx.fill();ctx.lineWidth=2;ctx.strokeStyle='rgba(15,23,42,.85)';ctx.stroke();ctx.restore()}
+cv.addEventListener('focus',()=>{if(!kbMode)return;if(kbTargets().length){kbArmAt=Math.max(kbArmAt,Date.now()+150);kbFocusChoice(true)}else kbSay(kbIdleHint())});
+cv.addEventListener('blur',()=>render());
+cv.addEventListener('keydown',e=>{
+  const k=e.key;
+  if(['ArrowLeft','ArrowUp','ArrowRight','ArrowDown','Home','End'].includes(k)){
+    e.preventDefault();kbMode=true;const t=kbTargets();
+    if(!t.length){if(!e.repeat)kbSay(kbIdleHint());return}
+    let i=t.findIndex(m=>kbSame(m,kbPick));
+    if(i<0)i=0;else if(k==='Home')i=0;else if(k==='End')i=t.length-1;else if(k==='ArrowLeft'||k==='ArrowUp')i=(i-1+t.length)%t.length;else i=(i+1)%t.length;
+    kbPick=t[i];kbFocusChoice(true);return;
+  }
+  if(k==='Enter'||k===' '){
+    e.preventDefault();kbMode=true;if(e.repeat)return;
+    const t=kbTargets();
+    if(!t.length){if(Date.now()<kbArmAt)return;if(phase==='pickCard'&&cur()&&!cur().ai){const b=document.querySelector('#hand .cardbtn');if(b){b.focus();kbSay('Pick a card first.');return}}if(phase==='pickSteps'){const b=document.querySelector('#steps button');if(b){b.focus();return}}kbSay(kbIdleHint());return}
+    if(Date.now()<kbArmAt)return;
+    if(!t.some(m=>kbSame(m,kbPick))){kbFocusChoice(true);return}
+    const m=kbPick;kbPick=null;kbPlay(m);
+    const st=document.querySelector('#steps button');if(st&&document.getElementById('steps').style.display!=='none'){st.focus();kbSay('Choose how many steps, 1 to 7, for marble '+(m.idx+1)+'. Tab through the numbers and press Enter.')}
+    return;
+  }
+  if(k==='Escape'){
+    if(phase==='pickMarble'&&!split){e.preventDefault();selCard=null;phase='pickCard';legal=[];kbPick=null;document.getElementById('skipbtn').classList.add('hidden');log(pname(cur().color)+' - pick a card');renderHand();render();const b=document.querySelector('#hand .cardbtn');if(b)b.focus();kbSay('Card put back. Pick a card.')}
+    else if(kbPick){kbPick=null;render();kbSay('Selection cleared. Press an arrow key to choose a marble.')}
   }
 });
 function playOn(color, i, card){
@@ -351,7 +420,7 @@ function playOn(color, i, card){
     split = {first:i};
     phase = 'pickSwap';
     log('Tap any loop marble to swap with');
-    render(); return;
+    render(); kbFocusChoice(document.activeElement===cv&&kbMode); return;
   }
   if(r==='7'){
     showSteps(7, s=>{
@@ -372,7 +441,7 @@ function playOn(color, i, card){
           phase = 'pickSecond';
           document.getElementById('skipbtn').classList.remove('hidden');
           log(msg+' - tap a second marble for the remaining '+(7-s));
-          render();
+          render(); kbBeginChoice();
         }
       }
     });
@@ -474,7 +543,7 @@ function render(){
   // lanes
   for(const c of TURN_ORDER) LANE[c].forEach(rc=>drawCell(rc, COLORS[c]));
   // marbles
-  const byCell = {};
+  const byCell = {};drawnMarbles={};
   for(const pl of players){
     marbles[pl.color].forEach((p,slot)=>{
       const [x,y]=marbleXY(pl.color,p,slot);
@@ -491,12 +560,14 @@ function render(){
         ((phase==='pickMarble' && legal.includes(t.slot)) ||
          (phase==='pickSecond' && legal.includes(t.slot) && split && t.slot!==split.first) ||
          (phase==='pickSwap' && marbles[t.color][t.slot]>=0 && marbles[t.color][t.slot]<=39));
+      drawnMarbles[t.color+t.slot]={x:t.x+dx,y:t.y+dy,r};
       ctx.beginPath(); ctx.arc(t.x+dx,t.y+dy,r,0,7);
       ctx.fillStyle=COLORS[t.color]; ctx.fill();
       ctx.lineWidth=glow?4:2; ctx.strokeStyle=glow?'#0ea5e9':'#ffffff'; ctx.stroke();
       if(glow){ ctx.beginPath(); ctx.arc(t.x+dx,t.y+dy,r+5,0,7); ctx.strokeStyle='rgba(14,165,233,.5)'; ctx.lineWidth=3; ctx.stroke(); }
     });
   }
+  kbDrawFocus();
 }
 render();
 
