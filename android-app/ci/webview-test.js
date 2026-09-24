@@ -61,6 +61,8 @@ const click = sel => `(()=>{const e=document.querySelector(${JSON.stringify(sel)
   } else if (phase === 'online-recover') {
     const ok = await until(cdp, "location.hostname==='boardfusion.onrender.com'&&document.readyState==='complete'", 150000, 'game page opened by itself after network returned');
     check(ok, 'launcher recovers automatically when back online');
+    // Keep test runs out of the owner's usage stats (same switch as stats.html "Don't count this device").
+    if (ok) await cdp.ev("localStorage.setItem('bf_no_track','1')");
     await sleep(2000); shot('02-recovered');
   } else {
     const t0 = Date.now();
