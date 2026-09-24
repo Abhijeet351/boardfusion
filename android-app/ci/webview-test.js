@@ -100,6 +100,8 @@ const click = sel => `(()=>{const e=document.querySelector(${JSON.stringify(sel)
     log('status before roll:', JSON.stringify(before), '| after:', JSON.stringify(after));
     check(before !== after, 'rolling changes the game status');
     shot('05-after-roll');
+    // Turn passed to the next player: hand the phone over again.
+    if (await cdp.ev(visible('.pass-card button'))) { await tap('.pass-card button', 'Ready to roll (next player)'); await sleep(1500); }
     // Marble Loop tab, then Android back returns to Dice Race.
     if (await tap('#tab-jackaroo', 'Marble Loop tab')) {
       await sleep(4000);
@@ -110,9 +112,9 @@ const click = sel => `(()=>{const e=document.querySelector(${JSON.stringify(sel)
       check(path === '/' || path === '/index.html', `Android back from Marble Loop returns to Dice Race (${path})`);
     }
     // Online matchmaking from a fresh page (the way the landing page's Play online link opens it).
-    await cdp.ev("location.replace('https://boardfusion.onrender.com/?utm_source=android_app#online')");
-    await sleep(1500);
-    await until(cdp, "document.readyState==='complete'&&!!document.querySelector('#online')", 90000, 'online page ready');
+    await cdp.ev("location.replace('https://boardfusion.onrender.com/?utm_source=android_app&fresh=' + Date.now() + '#online')");
+    await sleep(3000);
+    await until(cdp, "/fresh=/.test(location.search)&&document.readyState==='complete'&&!!document.querySelector('#online')", 90000, 'online page reloaded');
     await sleep(1500);
     if (!(await cdp.ev(visible('#findmatch')))) await tap('#onlinebtn', 'Online button');
     await sleep(1000);
