@@ -29,7 +29,7 @@ Original name, art, and code - inspired by the *genre* of games like Ludo Star, 
 | Dice Race (Ludo-style), local play | Done, visually verified |
 | Marble Loop (Jackaroo-style), local play | Done, visually verified |
 | Online multiplayer | Dice Race rooms working and e2e-verified locally (two Chrome instances over the relay); needs deployment, reconnection, and anti-cheat validation. Marble Loop online not wired yet |
-| Android | Capacitor wrapper config included; no signed APK/AAB built yet |
+| Android | Signed APK 1.0.0 (direct download from GitHub Releases), built and emulator-tested by the `Android app` GitHub Actions workflow. Not on the Play Store |
 | Accounts, stats, voice chat, seasons | Not started (see roadmap) |
 
 ## Project layout
@@ -39,7 +39,7 @@ Original name, art, and code - inspired by the *genre* of games like Ludo Star, 
 - `marble.html` - Marble Loop web game (same engine style, card-driven)
 - `server.js` - Node + `ws` room relay for online play (run: `npm install && npm start`, port 8787)
 - `package.json` - server manifest
-- `capacitor.config.json` - Android/iOS wrapper config
+- `android-app/` - Android app (Capacitor shell, build script, emulator tests)
 - `landing.html` - marketing landing page, served at /landing.html
 - `icon.png` - original app icon
 - `render.yaml`, `fly.toml` - deploy configs
@@ -63,19 +63,23 @@ Host-authoritative rooms (same trust model as most web board games):
 4. Next steps before calling this production-ready: reconnect/resume, turn timers,
    server-side move validation (anti-cheat), TLS + a real deploy target.
 
-## Android plan
+## Android app
 
-The web game is the single codebase. Wrapping with Capacitor:
+The Android app lives in `android-app/`. It is a small Capacitor 8 shell: a bundled launcher screen
+wakes the Render server (free tier sleeps), shows offline / maintenance states, then opens the live
+game at https://boardfusion.onrender.com inside the app. Web updates reach the app without a new APK.
+App visits arrive in analytics with `utm_source=android_app`.
 
-```
-npm install @capacitor/core @capacitor/cli @capacitor/android
-npx cap init --web-dir www        # copy index.html into www/
-npx cap add android
-npx cap sync && npx cap open android   # build APK/AAB in Android Studio
-```
-
-The UI is already touch-first and viewport-locked, so no layout work is expected.
-Play Store listing (name, icon, screenshots, age rating) still needs original artwork.
+- Download: GitHub Releases (`BoardFusion-<version>.apk`). Sideloaded, Android 7.0+.
+- Build: `cd android-app && ANDROID_HOME=... bash build.sh` (needs Node 20+, JDK 21, Android SDK platform 36).
+  Without signing variables it produces a debug APK and an unsigned release APK.
+- Signing: set `BF_KEYSTORE`, `BF_KEYSTORE_PASSWORD`, `BF_KEY_ALIAS` to get `dist/BoardFusion-<version>.apk`.
+  The keystore is kept privately by the owner and is never committed (see `android-app/.gitignore`).
+  Every future update must be signed with the same key, or phones will refuse to install it over the old app.
+- CI: `.github/workflows/android.yml` builds on every change to `android-app/` and tests the debug APK on an
+  Android 14 emulator (offline launch, auto-recovery, local game, Marble Loop + back button, online matchmaking).
+  Screenshots and the test log go to the `android-ci` pre-release.
+- For a new version, bump `version` in `android-app/package.json` and pass a higher `VERSION_CODE`.
 
 ## Marble Loop design (Jackaroo-style, next milestone)
 
@@ -98,7 +102,7 @@ Deploy configs included: render.yaml (recommended free path), fly.toml (paid aft
 1. ~~Marble Loop playable locally~~ DONE (milestone 2)
 2. ~~Online rooms for Dice Race~~ DONE (milestone 3, locally verified) - next: wire Marble Loop rooms,
    deploy the relay somewhere public, then harden (reconnect/resume, server-side validation)
-3. Android wrapper + store assets
+3. ~~Android wrapper~~ DONE (signed APK, direct download) - Play Store listing still open
 4. Profiles, stats, and match history
 5. Nice-to-haves observed in the genre: quick-play blitz mode, in-game chat, seasonal cosmetics
    (all with original art and naming)
