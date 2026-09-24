@@ -121,7 +121,7 @@
   @media(max-width:540px){.theme-pill{position:static;margin:4px 0 2px}.choice-grid{grid-template-columns:1fr 1fr}.setup-section{padding:10px}.panel{max-height:92vh}}
 
   /* Fine UI/UX pass: clearer hierarchy, easier touch targets, calmer setup, and stronger state feedback. */
-  button,input,select{font:inherit}button:focus-visible,input:focus-visible,select:focus-visible,canvas:focus-visible{outline:3px solid color-mix(in srgb,var(--accent) 75%,white);outline-offset:3px}
+  button,input,select{font:inherit}.sr-only{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}button:focus-visible,input:focus-visible,select:focus-visible,canvas:focus-visible{outline:3px solid color-mix(in srgb,var(--accent) 75%,white);outline-offset:3px}
   button{min-height:44px}.theme-pill{min-height:36px}.tab{min-height:44px}
   #statusbar{position:relative;justify-content:flex-start;text-align:left;padding-left:42px;line-height:1.3}
   #statusbar:before{content:'TURN';position:absolute;left:11px;font-size:8px;font-weight:950;letter-spacing:1px;opacity:.6}
@@ -154,8 +154,8 @@
 
 <div id="ludo-view">
   <section class="arena">
-  <div id="statusbar" role="status" aria-live="polite" aria-atomic="true">Set up a game to begin</div>
-  <div id="boardstage"><div id="boardwrap"><canvas id="board" width="600" height="600" tabindex="0" aria-label="Ludo board. Roll the die, then tap a highlighted token when asked."></canvas></div><div id="playerrail" aria-live="polite"></div><div id="boarddie" aria-hidden="true"></div><div id="turnflash" role="status" aria-live="assertive" aria-atomic="true"></div></div>
+  <div id="statusbar" role="status" aria-live="polite" aria-atomic="true">Set up a game to begin</div><div id="kbstatus" class="sr-only" aria-live="assertive" aria-atomic="true"></div>
+  <div id="boardstage"><div id="boardwrap"><canvas id="board" width="600" height="600" tabindex="0" aria-label="Ludo board. Press Enter to roll. When more than one token can move, use the arrow keys to choose a token and Enter to move it." aria-describedby="kbstatus"></canvas></div><div id="playerrail" aria-live="polite"></div><div id="boarddie" aria-hidden="true"></div><div id="turnflash" role="status" aria-live="assertive" aria-atomic="true"></div></div>
   <div id="controls">
     <button id="dicebtn" disabled></button>
     <button id="newgame">New Game<span class="control-label">Local</span></button>
@@ -275,6 +275,7 @@ let players = [];            // [{color, ai, done}]
 let tokens = {};             // color -> [p..]  -1 yard, 0..50 track, 51..56 home lane (56 = home)
 let turn = 0, dice = null, awaitingMove = false, gameOver = true, sixes = 0;
 let movableCache = [];
+let kbMode=false,kbSlot=null,kbSent=false,kbArmAt=0,kbWasAwaiting=false,drawnTokens={}; // keyboard token selection
 let log = m => { const bar=document.getElementById('statusbar');bar.innerHTML=m;bar.dataset.state=(/tap a glowing token/i.test(bar.textContent)?'choose':/to roll/i.test(bar.textContent)?'roll':'info'); };
 function setTransition(on){transitionBusy=on;document.body.classList.toggle('transitioning',on);updateDiceControl()}
 function isLocalTurn(){return !(window.NET&&NET.mode==='v2')||NET.seat===turn}
@@ -325,7 +326,7 @@ soundOpt.onchange=e=>{nostalgia.sound=e.target.checked;saveAudioPrefs();if(nosta
 musicOpt.onchange=e=>{nostalgia.music=e.target.checked;saveAudioPrefs();if(nostalgia.music)unlockAudio();else syncMusic()};syncMusic();
 document.getElementById('quickentry').onchange=e=>nostalgia.quickEntry=e.target.checked;document.getElementById('safestars').onchange=e=>nostalgia.safeStars=e.target.checked;document.getElementById('passphone').onchange=e=>nostalgia.passPhone=e.target.checked;
 document.getElementById('themequick').onclick=()=>applyTheme(nostalgia.theme==='neon'?'holiday':'neon');function openSetup(){document.getElementById('setup').classList.remove('hidden');document.getElementById('closesetup').classList.toggle('hidden',gameOver);setTimeout(()=>document.getElementById('setup-title').focus?.(),0)}document.getElementById('customize').onclick=openSetup;document.getElementById('closesetup').onclick=()=>document.getElementById('setup').classList.add('hidden');
-function showPassPhone(){if(!nostalgia.passPhone||!players[turn]||players[turn].ai||window.NET?.mode==='v2'||players.filter(p=>!p.ai).length<2)return;const el=document.createElement('div');el.className='pass-overlay';el.innerHTML='<div class="pass-card"><small>PASS THE PHONE</small><b>'+escapeHtml(nostalgia.names[turn]||players[turn].color)+'\'s turn</b><p>Hand the board over without peeking.</p><button>Ready to roll</button></div>';document.body.appendChild(el);el.querySelector('button').onclick=()=>el.remove()}
+function showPassPhone(){if(!nostalgia.passPhone||!players[turn]||players[turn].ai||window.NET?.mode==='v2'||players.filter(p=>!p.ai).length<2)return;const el=document.createElement('div');el.className='pass-overlay';el.innerHTML='<div class="pass-card"><small>PASS THE PHONE</small><b>'+escapeHtml(nostalgia.names[turn]||players[turn].color)+'\'s turn</b><p>Hand the board over without peeking.</p><button>Ready to roll</button></div>';document.body.appendChild(el);el.querySelector('button').onclick=()=>{el.remove();if(kbMode)cv.focus()};if(kbMode)setTimeout(()=>{const a=document.activeElement;if(el.isConnected&&(!a||a===cv||a===document.body||a.id==='dicebtn'))el.querySelector('button').focus()},600)}
 function showMemoryCard(winner){const moved=Object.values(tokens).flat().filter(x=>x>=0).length;const el=document.createElement('div');el.className='memory-card';el.innerHTML='<div class="memory-inner"><div class="stamp">🏆</div><small>FROM NANI\'S GAME TABLE</small><h2>'+escapeHtml(winner)+' won this one</h2><p>'+moved+' tokens made it onto the board. Save the bragging rights for the next family rematch.</p><button>Keep this memory</button></div>';document.body.appendChild(el);el.querySelector('button').onclick=()=>el.remove()}
 
 // ---------- Setup UI ----------
@@ -362,7 +363,7 @@ document.getElementById('startbtn').onclick = ()=>{
   playerCards(); render(); announceTurn(120);
 };
 document.getElementById('newgame').onclick = openSetup;
-document.getElementById('howto').onclick = ()=>alert('Dice Race rules:\n\n- Roll a 6 to move a token out of base.\n- Tap the dice, then tap a highlighted token to move it.\n- Land on an opponent to send them back to base.\n- Star squares are safe.\n- Rolling a 6, capturing, or bringing a token home gives another roll.\n- Three 6s in a row ends your turn.\n- First player to bring all 4 tokens home wins.');
+document.getElementById('howto').onclick = ()=>alert('Dice Race rules:\n\n- Roll a 6 to move a token out of base.\n- Tap the dice, then tap a highlighted token to move it.\n- Keyboard: Tab to the board, Enter rolls, arrow keys choose a token, Enter moves it.\n- Land on an opponent to send them back to base.\n- Star squares are safe.\n- Rolling a 6, capturing, or bringing a token home gives another roll.\n- Three 6s in a row ends your turn.\n- First player to bring all 4 tokens home wins.');
 
 // ---------- Tabs ----------
 const tabL = document.getElementById('tab-ludo'), tabJ = document.getElementById('tab-jackaroo');
@@ -397,12 +398,12 @@ function doRoll(forced){
   }
   movableCache = mv;
   if(mv.length===1){ setTimeout(()=>moveToken(color, mv[0]),900); return; }
-  setTimeout(()=>{awaitingMove=true;setTransition(false);log(tname(color)+' rolled '+dice+' - tap a glowing token');render();updateDiceControl()},900);
+  setTimeout(()=>{awaitingMove=true;setTransition(false);log(tname(color)+' rolled '+dice+' - tap a glowing token');render();updateDiceControl();kbBeginChoice()},900);
 }
 
 function moveToken(color, idx){
   if(gameOver||transitionBusy&&awaitingMove)return;
-  awaitingMove=false;setTransition(true);
+  awaitingMove=false;kbSlot=null;setTransition(true);
   const from=tokens[color][idx],to=from===-1?(nostalgia.quickEntry?Math.min(dice,6):0):from+dice;
   animateTokenGhost(color,from,to,idx).then(()=>completeTokenMove(color,idx));
 }
@@ -486,6 +487,47 @@ cv.addEventListener('click', e=>{
   }
 });
 
+// ---------- Keyboard token selection ----------
+// Focus the board (Tab), Enter/Space rolls. When several tokens can move:
+// arrow keys (or Home/End) cycle the legal tokens, Enter/Space moves the ringed one.
+// Tab is never captured, so keyboard users can always leave the board.
+document.addEventListener('keydown',e=>{if(e.key==='Tab'||e.key==='Enter'||e.key===' '||e.key.startsWith('Arrow'))kbMode=true},true);
+document.addEventListener('pointerdown',()=>{if(kbMode){kbMode=false;if(!transitionBusy)render()}},true);
+function kbChoices(){if(gameOver||!awaitingMove||transitionBusy||kbSent||!players[turn]||players[turn].ai||!isLocalTurn())return[];return movableCache.slice().sort((a,b)=>a-b)}
+function kbSay(m){const el=document.getElementById('kbstatus');if(!el)return;el.textContent='';setTimeout(()=>{el.textContent=m},40)}
+function kbDescribe(color,slot){const p=tokens[color][slot];return 'Token '+(slot+1)+', '+(p===-1?'in base, will enter the board':p>=51?(56-p)+' steps from home, in the home lane':(56-p)+' steps from home')}
+function kbIdleHint(){const pl=players[turn];if(!players.length)return 'Set up a game to begin.';if(gameOver)return 'Game over. Start a new game.';if(document.querySelector('.pass-overlay'))return 'Press Ready to roll first.';if(!isLocalTurn())return 'Waiting for '+(pl&&pl.name||'the other player')+'.';if(pl&&pl.ai)return 'Computer is playing.';if(kbSent)return 'Move sent. Waiting for the server.';if(!document.getElementById('dicebtn').disabled)return 'Your turn. Press Enter to roll.';return 'Please wait.'}
+function kbFocusChoice(announce){const ch=kbChoices();if(!ch.length){kbSlot=null;return}if(!ch.includes(kbSlot))kbSlot=ch[0];if(!transitionBusy)render();if(announce)kbSay(kbDescribe(players[turn].color,kbSlot)+'. Choice '+(ch.indexOf(kbSlot)+1)+' of '+ch.length+'. Arrow keys to change, Enter to move.')}
+function kbBeginChoice(){if(!kbMode||!kbChoices().length)return;const a=document.activeElement;if(document.querySelector('.pass-overlay'))return;if(a&&a!==cv&&a!==document.body&&a!==document.getElementById('dicebtn'))return;kbSlot=null;kbArmAt=Date.now()+350;if(a!==cv)cv.focus();else kbFocusChoice(true)}
+function kbDrawFocus(){if(!kbMode||document.activeElement!==cv||kbSlot===null||!kbChoices().includes(kbSlot))return;const d=drawnTokens[players[turn].color+kbSlot];if(!d)return;const R=d.r+11;ctx.save();ctx.setLineDash([]);ctx.lineWidth=7;ctx.strokeStyle='rgba(15,23,42,.85)';ctx.beginPath();ctx.arc(d.x,d.y,R,0,7);ctx.stroke();ctx.lineWidth=3.5;ctx.strokeStyle='#facc15';ctx.setLineDash([7,4]);ctx.beginPath();ctx.arc(d.x,d.y,R,0,7);ctx.stroke();ctx.setLineDash([]);const up=d.y-R-16>=0,ty=up?d.y-R-3:d.y+R+3,tb=up?ty-13:ty+13;ctx.beginPath();ctx.moveTo(d.x,ty);ctx.lineTo(d.x-8,tb);ctx.lineTo(d.x+8,tb);ctx.closePath();ctx.fillStyle='#facc15';ctx.fill();ctx.lineWidth=2;ctx.strokeStyle='rgba(15,23,42,.85)';ctx.stroke();ctx.restore()}
+cv.addEventListener('focus',()=>{if(!kbMode)return;if(kbChoices().length){kbArmAt=Math.max(kbArmAt,Date.now()+150);kbFocusChoice(true)}else kbSay(kbIdleHint())});
+cv.addEventListener('blur',()=>{if(!transitionBusy)render()});
+cv.addEventListener('keydown',e=>{
+  const k=e.key;
+  if(['ArrowLeft','ArrowUp','ArrowRight','ArrowDown','Home','End'].includes(k)){
+    e.preventDefault();kbMode=true;const ch=kbChoices();
+    if(!ch.length){if(!e.repeat)kbSay(kbIdleHint());return}
+    let i=ch.indexOf(kbSlot);
+    if(i<0)i=0;else if(k==='Home')i=0;else if(k==='End')i=ch.length-1;else if(k==='ArrowLeft'||k==='ArrowUp')i=(i-1+ch.length)%ch.length;else i=(i+1)%ch.length;
+    kbSlot=ch[i];kbFocusChoice(true);return;
+  }
+  if(k==='Enter'||k===' '){
+    e.preventDefault();kbMode=true;if(e.repeat)return;
+    const ch=kbChoices();
+    if(ch.length){
+      if(Date.now()<kbArmAt)return;
+      if(!ch.includes(kbSlot)){kbFocusChoice(true);return}
+      const i=kbSlot,color=players[turn].color;kbSlot=null;
+      if(window.NET&&NET.mode==='v2'){kbSent=true;render();NET.pick(i);setTimeout(()=>{if(kbSent){kbSent=false;kbFocusChoice(document.activeElement===cv)}},2500)}else moveToken(color,i);
+      return;
+    }
+    const pass=document.querySelector('.pass-overlay button');if(pass){pass.focus();return}
+    const b=document.getElementById('dicebtn');if(!b.disabled){b.click();return}
+    kbSay(kbIdleHint());return;
+  }
+  if(k==='Escape'&&kbSlot!==null){kbSlot=null;if(!transitionBusy)render();kbSay('Selection cleared. Press an arrow key to choose a token.')}
+});
+
 // ---------- Rendering ----------
 function cellXY(rc){ return [ (rc[1]+0.5)*S, (rc[0]+0.5)*S ]; }
 function tokenXY(color,p,slot){
@@ -530,7 +572,7 @@ function render(){
   ctx.beginPath(); ctx.moveTo(6*S,9*S); ctx.lineTo(cx,cy); ctx.lineTo(9*S,9*S); ctx.closePath(); ctx.fillStyle=COLORS.blue; ctx.fill();
   ctx.strokeStyle='#475569'; ctx.strokeRect(6*S,6*S,3*S,3*S);
   // tokens
-  const byCell = {};
+  const byCell = {};drawnTokens={};
   for(const pl of players){
     tokens[pl.color].forEach((p,slot)=>{
       const [x,y] = tokenXY(pl.color,p,slot);
@@ -543,13 +585,14 @@ function render(){
     g.forEach((t,gi)=>{
       let dx=0, dy=0, r=S*0.36;
       if(g.length>1){ r=S*0.26; dx=(gi%2?1:-1)*S*0.2; dy=(gi>1?1:-1)*S*0.2; }
-      const glow = awaitingMove && players[turn].color===t.color && movableCache.includes(t.slot);
+      const glow = awaitingMove && players[turn].color===t.color && movableCache.includes(t.slot);drawnTokens[t.color+t.slot]={x:t.x+dx,y:t.y+dy,r};
       ctx.beginPath(); ctx.arc(t.x+dx,t.y+dy,r,0,7);
       const base=COLORS[t.color];if(nostalgia.token==='glass'){const g=ctx.createRadialGradient(t.x+dx-r*.35,t.y+dy-r*.35,2,t.x+dx,t.y+dy,r);g.addColorStop(0,'#fff');g.addColorStop(.25,base);g.addColorStop(1,'rgba(30,30,30,.7)');ctx.fillStyle=g}else if(nostalgia.token==='cap'){ctx.fillStyle=base}else if(nostalgia.token==='carrom'){ctx.fillStyle=base}else{const g=ctx.createLinearGradient(t.x-r,t.y-r,t.x+r,t.y+r);g.addColorStop(0,'#ffe0a6');g.addColorStop(.35,base);g.addColorStop(1,'#5a2d1b');ctx.fillStyle=g}ctx.fill();
       ctx.lineWidth=nostalgia.token==='cap'?5:(glow?4:2);ctx.strokeStyle=glow?'#0ea5e9':(nostalgia.token==='carrom'?'#432819':'#ffffff');ctx.stroke();if(nostalgia.token==='cap'){ctx.beginPath();ctx.arc(t.x+dx,t.y+dy,r*.56,0,7);ctx.strokeStyle='rgba(255,255,255,.55)';ctx.lineWidth=1.5;ctx.stroke()}
       if(glow){ ctx.beginPath(); ctx.arc(t.x+dx,t.y+dy,r+5,0,7); ctx.strokeStyle='rgba(14,165,233,.5)'; ctx.lineWidth=3; ctx.stroke(); }
     });
   }
+  kbDrawFocus();
 }
 function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
 setDiceFace(1);
@@ -589,7 +632,7 @@ let bfQueueAt=0;function bfQueueEnd(reason){if(!bfQueueAt)return;const s=(Date.n
 function applyRoomNow(room,event){
  lobbyNames=room.seats.map(x=>x.name);refreshLobby(room);
  if(!room.state){playerCards(room.seats);return;}
- const g=room.state;detectMoment(lastOnlineSnapshot,g,event);bfTrackOnline(lastOnlineSnapshot,g,event,room);players=g.players.map(p=>({color:p.color,ai:false,done:p.done,name:p.name}));tokens=g.tokens;turn=g.turn;dice=g.dice;awaitingMove=g.awaiting;movableCache=g.awaiting?getMovable(players[turn].color,g.dice):[];gameOver=g.over;sixes=g.sixes;
+ const g=room.state;detectMoment(lastOnlineSnapshot,g,event);bfTrackOnline(lastOnlineSnapshot,g,event,room);players=g.players.map(p=>({color:p.color,ai:false,done:p.done,name:p.name}));tokens=g.tokens;turn=g.turn;dice=g.dice;awaitingMove=g.awaiting;movableCache=g.awaiting?getMovable(players[turn].color,g.dice):[];gameOver=g.over;sixes=g.sixes;kbSent=false;
  if(dice)finishDiceShake(dice);else if(!diceAwaitingResult)setDiceFace(1);
  turnReady=!gameOver&&!awaitingMove;setTransition(false);updateDiceControl();
  document.getElementById('setup').classList.add('hidden');document.getElementById('online').classList.add('hidden');document.getElementById('onlinetools').classList.remove('hidden');document.querySelectorAll('.pass-overlay').forEach(x=>x.remove());
@@ -597,6 +640,7 @@ function applyRoomNow(room,event){
  log(onlineLog(g,event));playerCards(room.seats);render();lastOnlineSnapshot=JSON.parse(JSON.stringify(g));
  if(g.over&&room.resultId&&onlineResultSeen!==room.resultId){onlineResultSeen=room.resultId;if(NET.seat===g.winner){BFGame.win(g.players[g.winner].name,room.resultId);}if(memoryResultSeen!==room.resultId){memoryResultSeen=room.resultId;setTimeout(()=>showMemoryCard(g.players[g.winner].name),1250);}}
  if(!g.over){onlineResultSeen=null;memoryResultSeen=null;}
+ const kbWant=awaitingMove&&isLocalTurn();if(kbWant&&!kbWasAwaiting)kbBeginChoice();kbWasAwaiting=kbWant;
 }
 function refreshLobby(room){if(!NET.room)return;document.getElementById('connform').classList.add('hidden');document.getElementById('lobbyview').classList.remove('hidden');const seats=room?.seats||lobbyNames.map((name,seat)=>({name,seat,online:true}));document.getElementById('roomline').innerHTML='Room <span class="room-badge">'+escapeHtml(NET.room)+'</span> · '+seats.length+'/4 players';document.getElementById('lobbylist').innerHTML=seats.map((x,i)=>'<li>'+pname(seatColors(seats.length)[i])+' '+escapeHtml(x.name)+(i===0?' (host)':'')+(x.online?'':' - reconnecting')+'</li>').join('');const isHost=NET.seat===0;document.getElementById('startonline').classList.toggle('hidden',!isHost||!!room?.state);document.getElementById('waitnote').classList.toggle('hidden',isHost||!!room?.state);}
 function escapeHtml(v){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
